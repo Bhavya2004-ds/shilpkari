@@ -72,26 +72,36 @@ const NavLink = styled(Link)`
   color: #374151;
   text-decoration: none;
   font-weight: 500;
-  transition: color 0.3s ease;
+  transition: all 0.3s ease;
   position: relative;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  outline: none;
 
-  &:hover {
+  &:hover, &:focus {
     color: #d97706;
+    background: rgba(217, 119, 6, 0.1);
   }
 
   &::after {
     content: '';
     position: absolute;
     bottom: -5px;
-    left: 0;
-    width: 0;
+    left: 0.75rem;
+    width: calc(100% - 1.5rem);
     height: 2px;
     background: #d97706;
-    transition: width 0.3s ease;
+    transition: transform 0.3s ease;
+    transform: scaleX(0);
+    transform-origin: left;
   }
 
-  &:hover::after {
-    width: 100%;
+  &:hover::after, &:focus::after {
+    transform: scaleX(1);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.3);
   }
 `;
 
@@ -255,9 +265,17 @@ const MobileMenu = styled(motion.div)`
 
 const MobileNavLink = styled(Link)`
   display: block;
-  padding: 0.75rem 0;
+  padding: 0.75rem 1rem;
   color: #374151;
   text-decoration: none;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  outline: none;
+  
+  &:focus-visible {
+    background: rgba(217, 119, 6, 0.1);
+    box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.3);
+  }
   border-bottom: 1px solid #f3f4f6;
 
   &:last-child {

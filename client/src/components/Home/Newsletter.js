@@ -75,6 +75,7 @@ const SubscribeButton = styled.button`
     cursor: not-allowed;
     transform: none;
   }
+   
 `;
 
 const Newsletter = () => {
@@ -109,7 +110,7 @@ const Newsletter = () => {
           transition={{ duration: 0.8 }}
           viewport={{ once: true }}
         >
-          <h2 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '1rem' }}>
+          <h2 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '1rem',color: '#fff' }}>
             Stay Updated
           </h2>
           <p style={{ fontSize: '1.125rem', color: '#d1d5db', marginBottom: '2rem' }}>

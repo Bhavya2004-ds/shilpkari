@@ -65,14 +65,19 @@ const FeaturesGrid = styled.div`
 `;
 
 const FeatureCard = styled(motion.div)`
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 2rem;
-  padding: 3rem 2rem;
+  background: linear-gradient(135deg, rgba(249, 250, 251, 0.1), rgba(243, 244, 246, 0.1));
+  border-radius: 1.5rem;
+  padding: 2.5rem 2rem;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
   box-shadow: 
     0 10px 30px rgba(0, 0, 0, 0.1),
-    0 4px 12px rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -102,86 +107,47 @@ const FeatureCard = styled(motion.div)`
   }
 `;
 
-const FeatureIcon = styled.div`
-  width: 100px;
-  height: 100px;
-  background: linear-gradient(135deg, #d97706, #b45309, #92400e);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 2rem;
-  font-size: 2.5rem;
-  color: white;
-  box-shadow: 
-    0 10px 30px rgba(217, 119, 6, 0.3),
-    0 4px 12px rgba(217, 119, 6, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  transition: all 0.3s ease;
-  position: relative;
-  z-index: 1;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: -2px;
-    left: -2px;
-    right: -2px;
-    bottom: -2px;
-    background: linear-gradient(135deg, #d97706, #b45309);
-    border-radius: 50%;
-    z-index: -1;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-  }
-
-  ${FeatureCard}:hover & {
-    transform: scale(1.1) rotate(5deg);
-    
-    &::before {
-      opacity: 1;
-    }
-  }
-`;
+// Removed FeatureIcon as we're using images now
 
 const FeatureTitle = styled.h3`
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   font-weight: 700;
   color: #1f2937;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
   position: relative;
   z-index: 1;
+  line-height: 1.3;
 `;
 
 const FeatureDescription = styled.p`
   color: #4b5563;
   line-height: 1.7;
-  font-size: 1.125rem;
+  font-size: 1.1rem;
   position: relative;
   z-index: 1;
+  max-width: 90%;
+  margin: 0 auto;
 `;
+
+// Removed FeatureIcon as per request
 
 const Features = () => {
   const { t } = useLanguage();
 
   const features = [
     {
-      icon: '🤖',
       title: t('home.features.ai.title'),
       description: t('home.features.ai.description')
     },
     {
-      icon: '🥽',
       title: t('home.features.vr.title'),
       description: t('home.features.vr.description')
     },
     {
-      icon: '⛓️',
       title: t('home.features.blockchain.title'),
       description: t('home.features.blockchain.description')
     },
     {
-      icon: '🌐',
       title: t('home.features.multilingual.title'),
       description: t('home.features.multilingual.description')
     }
@@ -204,7 +170,6 @@ const Features = () => {
               transition={{ duration: 0.6, delay: index * 0.1 }}
               viewport={{ once: true }}
             >
-              <FeatureIcon>{feature.icon}</FeatureIcon>
               <FeatureTitle>{feature.title}</FeatureTitle>
               <FeatureDescription>{feature.description}</FeatureDescription>
             </FeatureCard>
