@@ -1,0 +1,47 @@
+{
+  "name": "shilpkari-artisan-marketplace",
+  "version": "1.0.0",
+  "description": "E-commerce platform for Indian artisans with AI, VR/AR, and blockchain features",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "nodemon server/index.js",
+    "client": "cd client && npm start",
+    "build": "cd client && npm run build",
+    "install-all": "npm install && cd client && npm install",
+    "seed": "node server/scripts/seed.js"
+  },
+  "keywords": [
+    "ecommerce",
+    "artisans",
+    "ai",
+    "blockchain",
+    "vr",
+    "ar"
+  ],
+  "author": "Ankit Kumar Rai, Bhavya Pradhan",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.5.0",
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^1.40.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.18.2",
+    "i18next": "^23.5.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.20.0",
+    "mongoose": "^7.5.0",
+    "multer": "^1.4.5-lts.1",
+    "react-i18next": "^13.2.2",
+    "socket.io": "^4.7.2",
+    "web3": "^4.1.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "nodemon": "^3.0.1",
+    "y18n": "^5.0.8",
+    "yargs": "^18.0.0"
+  }
+}
