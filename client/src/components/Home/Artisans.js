@@ -107,6 +107,7 @@ const ViewProfileButton = styled(Link)`
 
   &:hover {
     background: #b45309;
+    color:white;
     transform: translateY(-2px);
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.15);
   }

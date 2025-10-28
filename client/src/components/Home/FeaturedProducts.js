@@ -145,14 +145,48 @@ const FeaturedProducts = () => {
       setLoading(true);
       try {
         const { data } = await api.get('/products/featured/list', { params: { limit: 6 } });
-        const normalized = (data || []).map(p => ({
-          id: p._id,
-          name: p.name,
-          price: `₹${p.price?.toLocaleString?.('en-IN') || p.price}`,
-          image: p.images?.[0]?.url || '🧶',
-        }));
+        console.log('Raw featured products data:', data);
+        
+        const normalized = (data || []).map(p => {
+          // Fix the images array if it's a string split into characters
+          let fixedImages = [];
+          if (Array.isArray(p.images) && p.images.length > 0) {
+            // Check if the first item is an object with a url property
+            if (p.images[0].url) {
+              fixedImages = p.images.map(img => img.url);
+            } 
+            // Check if the first item is an object that's actually a string split into characters
+            else if (p.images[0]['0'] === 'h' && p.images[0]['1'] === 't' && p.images[0]['2'] === 't') {
+              // Reconstruct the URL from the character map
+              const urlObj = p.images[0];
+              const urlLength = Object.keys(urlObj).filter(key => !isNaN(parseInt(key))).length;
+              let url = '';
+              for (let i = 0; i < urlLength; i++) {
+                url += urlObj[i];
+              }
+              fixedImages = [url];
+            }
+            // If it's already a proper array of URLs
+            else if (typeof p.images[0] === 'string') {
+              fixedImages = [...p.images];
+            }
+          }
+          
+          console.log('Fixed featured product images:', { id: p._id, fixedImages });
+          
+          return {
+            id: p._id,
+            name: p.name,
+            price: `₹${p.price?.toLocaleString?.('en-IN') || p.price}`,
+            image: fixedImages[0] || '🧶',
+            images: fixedImages
+          };
+        });
+        
+        console.log('Normalized featured products:', normalized);
         setFeaturedProducts(normalized);
       } catch (e) {
+        console.error('Error loading featured products:', e);
         setFeaturedProducts([]);
       } finally {
         setLoading(false);
@@ -173,29 +207,62 @@ const FeaturedProducts = () => {
           <p style={{ textAlign: 'center', color: '#6b7280' }}>Loading featured products...</p>
         ) : (
         <ProductsGrid>
-          {featuredProducts.map((product, index) => (
-            <ProductCard
-              key={product.id}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
-              viewport={{ once: true }}
-            >
-              <ProductImage>{typeof product.image === 'string' && product.image.startsWith('http') ? (
-                <img src={product.image} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                product.image
-              )}</ProductImage>
-              <ProductInfo>
-                <ProductName>{product.name}</ProductName>
-                <ProductPrice>{product.price}</ProductPrice>
+          {featuredProducts.map((product, index) => {
+            console.log('Rendering featured product:', { id: product.id, name: product.name, images: product.images });
+            return (
+              <ProductCard
+                key={product.id}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                viewport={{ once: true }}
+              >
+                <Link to={`/products/${product.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <ProductImage>
+                    {product.images && product.images.length > 0 ? (
+                      <img 
+                        src={product.images[0]}
+                        alt={product.name}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                        onError={(e) => {
+                          console.log('Featured product image failed to load, falling back to placeholder');
+                          e.target.onerror = null;
+                          e.target.src = 'https://via.placeholder.com/300x300?text=No+Image';
+                        }}
+                      />
+                    ) : (
+                      <div style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: '#f8f9fa',
+                        fontSize: '3rem',
+                        color: '#9ca3af'
+                      }}>
+                        🧶
+                      </div>
+                    )}
+                  </ProductImage>
+                  <ProductInfo>
+                    <ProductName>{product.name}</ProductName>
+                    <ProductPrice>{product.price}</ProductPrice>
+                  </ProductInfo>
+                </Link>
                 <ProductActions>
                   <ActionButton className="primary">Add to Cart</ActionButton>
-                  <ActionButton className="secondary">View</ActionButton>
+                  <Link to={`/products/${product.id}`} style={{ flex: 1 }}>
+                    <ActionButton className="secondary" style={{ width: '100%' }}>View</ActionButton>
+                  </Link>
                 </ProductActions>
-              </ProductInfo>
-            </ProductCard>
-          ))}
+              </ProductCard>
+            );
+          })}
         </ProductsGrid>
         )}
 

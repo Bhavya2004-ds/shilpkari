@@ -57,11 +57,13 @@ const productSchema = new mongoose.Schema({
     reserved: { type: Number, default: 0 }
   },
   dimensions: {
-    length: Number,
-    width: Number,
-    height: Number,
-    weight: Number,
-    unit: { type: String, default: 'cm' }
+    // Make dimensions more flexible to handle both string and number values
+    length: { type: mongoose.Schema.Types.Mixed },
+    width: { type: mongoose.Schema.Types.Mixed },
+    height: { type: mongoose.Schema.Types.Mixed },
+    weight: { type: mongoose.Schema.Types.Mixed },
+    unit: { type: String, default: 'cm' },
+    _id: false
   },
   materials: [String],
   techniques: [String],
@@ -94,6 +96,38 @@ const productSchema = new mongoose.Schema({
     seasonality: [Number], // Monthly demand pattern
     lastUpdated: Date
   },
+  // Reviews
+  reviews: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    rating: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5
+    },
+    comment: {
+      type: String,
+      required: true
+    },
+    sentiment: {
+      type: String,
+      enum: ['positive', 'neutral', 'negative'],
+      default: 'neutral'
+    },
+    sentimentScore: {
+      type: Number,
+      default: 0
+    },
+    images: [String],
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   // Analytics
   views: { type: Number, default: 0 },
   likes: { type: Number, default: 0 },

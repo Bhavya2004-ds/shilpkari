@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import styled from 'styled-components';
 import api from '../lib/api';
 import { useCart } from '../contexts/CartContext';
+import { toast } from 'react-hot-toast';
 
 const ProductsContainer = styled.div`
   min-height: 100vh;
@@ -183,13 +184,50 @@ const Products = () => {
           sortBy: filters.sort === 'newest' ? 'createdAt' : undefined,
           sortOrder: 'desc',
         };
+        console.log('Fetching products with params:', params);
         const { data } = await api.get('/products', { params });
-        const normalized = (data.products || []).map(p => ({
-          id: p._id,
-          name: p.name,
-          price: `₹${p.price?.toLocaleString?.('en-IN') || p.price}`,
-          image: p.images?.[0]?.url || '🧶',
-        }));
+        console.log('Raw API response:', data);
+        
+        const normalized = (data.products || []).map(p => {
+          console.log('Raw product data:', p);
+          console.log('Product images:', p.images);
+          
+          // Fix the images array if it's a string split into characters
+          let fixedImages = [];
+          if (Array.isArray(p.images) && p.images.length > 0) {
+            // Check if the first item is an object with a url property
+            if (p.images[0].url) {
+              fixedImages = p.images.map(img => img.url);
+            } 
+            // Check if the first item is an object that's actually a string split into characters
+            else if (p.images[0]['0'] === 'h' && p.images[0]['1'] === 't' && p.images[0]['2'] === 't') {
+              // Reconstruct the URL from the character map
+              const urlObj = p.images[0];
+              const urlLength = Object.keys(urlObj).filter(key => !isNaN(parseInt(key))).length;
+              let url = '';
+              for (let i = 0; i < urlLength; i++) {
+                url += urlObj[i];
+              }
+              fixedImages = [url];
+            }
+            // If it's already a proper array of URLs
+            else if (typeof p.images[0] === 'string') {
+              fixedImages = [...p.images];
+            }
+          }
+          
+          console.log('Fixed images array:', fixedImages);
+          
+          return {
+            id: p._id,
+            name: p.name,
+            price: `₹${p.price?.toLocaleString?.('en-IN') || p.price}`,
+            image: fixedImages[0] || '🧶',
+            images: fixedImages
+          };
+        });
+        
+        console.log('Normalized products:', normalized);
         setProducts(normalized);
       } catch (e) {
         setProducts([]);
@@ -254,21 +292,65 @@ const Products = () => {
           <ProductsGrid>
             {products.map(product => (
               <ProductCard key={product.id}>
-                <ProductImage>
-                  {typeof product.image === 'string' && product.image.startsWith('http') ? (
-                    <img src={product.image} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    product.image || '🧶'
-                  )}
-                </ProductImage>
-                <ProductInfo>
-                  <ProductName>{product.name}</ProductName>
-                  <ProductPrice>{product.price}</ProductPrice>
-                  <ProductActions>
-                    <ActionButton className="primary" onClick={() => addItem({ id: product.id, name: product.name, price: product.price, image: product.image, quantity: 1 })}>Add to Cart</ActionButton>
-                    <ActionButton className="secondary">View</ActionButton>
-                  </ProductActions>
-                </ProductInfo>
+                <Link to={`/products/${product.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <ProductImage>
+                    {console.log('Rendering product card:', product.id, 'with images:', product.images)}
+                    {product.images && product.images.length > 0 ? (
+                      <img 
+                        src={product.images[0]}
+                        alt={product.name || 'Product'}
+                        onError={(e) => {
+                          console.log('Image failed to load, falling back to placeholder');
+                          e.target.onerror = null;
+                          e.target.src = 'https://via.placeholder.com/300x300?text=No+Image';
+                        }}
+                        style={{ 
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                      />
+                    ) : (
+                      <div style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: '#f8f9fa',
+                        fontSize: '2rem',
+                        color: '#6b7280'
+                      }}>
+                        No Image
+                      </div>
+                    )}
+                  </ProductImage>
+                  <ProductInfo>
+                    <ProductName>{product.name}</ProductName>
+                    <ProductPrice>{product.price}</ProductPrice>
+                  </ProductInfo>
+                </Link>
+                <ProductActions>
+                  <ActionButton 
+                    className="primary" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      addItem({ 
+                        id: product.id, 
+                        name: product.name, 
+                        price: product.price, 
+                        image: product.image, 
+                        quantity: 1 
+                      });
+                      toast.success(`${product.name} added to cart`);
+                    }}
+                  >
+                    Add to Cart
+                  </ActionButton>
+                  <Link to={`/products/${product.id}`} style={{ textDecoration: 'none' }}>
+                    <ActionButton className="secondary">View Details</ActionButton>
+                  </Link>
+                </ProductActions>
               </ProductCard>
             ))}
           </ProductsGrid>

@@ -1,9 +1,10 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const { auth, artisanAuth } = require('../middleware/auth');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
-const mongoose = require('mongoose');
+const User = require('../models/User');
 
 const router = express.Router();
 
@@ -101,18 +102,64 @@ router.get('/', async (req, res) => {
 // Get single product
 router.get('/:id', async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id)
+    // Validate if ID is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid product ID format' });
+    }
+
+    // First, get the raw product without strict validation
+    let product = await Product.findById(req.params.id)
       .populate('artisan', 'name artisanProfile.businessName profileImage artisanProfile.description')
-      .populate('reviews.user', 'name profileImage');
+      .populate({
+        path: 'reviews.user',
+        select: 'name profileImage',
+        options: { strictPopulate: false }
+      })
+      .lean(); // Use lean() for better performance
 
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    // Increment view count
-    product.views += 1;
-    await product.save();
+    // Ensure all required fields have default values
+    product.images = product.images || [];
+    product.reviews = product.reviews || [];
 
+    // Handle dimensions safely
+    if (product.dimensions) {
+      // If dimensions is a string, convert it to an object
+      if (typeof product.dimensions === 'string') {
+        product.dimensions = {
+          description: product.dimensions,
+          unit: 'cm'
+        };
+      }
+      // Ensure all dimension fields exist
+      product.dimensions = {
+        length: product.dimensions.length || '',
+        width: product.dimensions.width || '',
+        height: product.dimensions.height || '',
+        weight: product.dimensions.weight || '',
+        unit: product.dimensions.unit || 'cm',
+        description: product.dimensions.description || ''
+      };
+    } else {
+      product.dimensions = {
+        length: '',
+        width: '',
+        height: '',
+        weight: '',
+        unit: 'cm',
+        description: ''
+      };
+    }
+
+    // Increment view count
+    await Product.updateOne(
+      { _id: req.params.id },
+      { $inc: { views: 1 } }
+    );
+    
     res.json(product);
   } catch (error) {
     console.error('Get product error:', error);
@@ -277,6 +324,85 @@ router.get('/featured/list', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+router.post('/:id/reviews', auth, async (req, res) => {
+  try {
+    const { rating, comment } = req.body;
+    const product = await Product.findById(req.params.id);
+    
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    // Check if the user is the artisan who created the product
+    if (product.artisan.toString() === req.userId) {
+      return res.status(403).json({ 
+        message: 'Artisans cannot review their own products' 
+      });
+    }
+
+    // Get user to check their role
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if user is a buyer (not an artisan)
+    if (user.role === 'artisan') {
+      return res.status(403).json({ 
+        message: 'Only buyers can submit reviews' 
+      });
+    }
+
+    const review = {
+      user: req.userId,
+      rating: Number(rating),
+      comment,
+      createdAt: new Date()
+    };
+
+    product.reviews.push(review);
+    
+    // Update the product's average rating
+    const totalReviews = product.reviews.length;
+    const totalRating = product.reviews.reduce((sum, r) => sum + r.rating, 0);
+    const averageRating = totalRating / totalReviews;
+    
+    product.rating = {
+      average: parseFloat(averageRating.toFixed(1)),
+      count: totalReviews
+    };
+    
+    await product.save();
+
+    // Populate user details for the response
+    await product.populate('reviews.user', 'name profileImage');
+    const newReview = product.reviews[product.reviews.length - 1];
+    
+    res.status(201).json(newReview);
+  } catch (error) {
+    console.error('Error adding review:', error);
+    res.status(500).json({ message: 'Error adding review', error: error.message });
+  }
+});
+
+// Get reviews for a product
+router.get('/:id/reviews', async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id)
+      .populate('reviews.user', 'name profileImage')
+      .select('reviews');
+
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    res.json(product.reviews || []);
+  } catch (error) {
+    console.error('Error fetching reviews:', error);
+    res.status(500).json({ message: 'Error fetching reviews', error: error.message });
+  }
+});
+
 
 // GET /api/products/mine  -> returns products for logged-in user (works with string or ObjectId refs)
 router.get('/mine', auth, async (req, res) => {

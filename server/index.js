@@ -32,6 +32,8 @@ app.use('/api/ai', require('./routes/ai'));
 app.use('/api/blockchain', require('./routes/blockchain'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/artisans', require('./routes/artisans'));
+app.use('/api/sentiment', require('./routes/sentiment'));
+
 // Serve static files from React app in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));
