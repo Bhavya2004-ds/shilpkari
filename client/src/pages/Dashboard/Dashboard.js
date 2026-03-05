@@ -1,60 +1,50 @@
 import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useLanguage } from '../../contexts/LanguageContext';
+import BuyerDashboard from './BuyerDashboard';
+import SellerDashboard from './SellerDashboard';
 import styled from 'styled-components';
 
-const DashboardContainer = styled.div`
+const LoadingContainer = styled.div`
   min-height: 100vh;
-  padding: 2rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
 `;
 
-const DashboardContent = styled.div`
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1rem;
-`;
+const LoadingSpinner = styled.div`
+  width: 48px;
+  height: 48px;
+  border: 4px solid #fef3c7;
+  border-top: 4px solid #d97706;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 
-const PageHeader = styled.div`
-  margin-bottom: 2rem;
-
-  h1 {
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: #1f2937;
-    margin-bottom: 0.5rem;
-  }
-
-  p {
-    color: #6b7280;
-    font-size: 1.125rem;
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
 `;
 
 const Dashboard = () => {
-  const { user } = useAuth();
-  const { t } = useLanguage();
+  const { user, loading } = useAuth();
 
-  return (
-    <DashboardContainer>
-      <DashboardContent>
-        <PageHeader>
-          <h1>Welcome back, {user?.name}!</h1>
-          <p>Here's what's happening with your account</p>
-        </PageHeader>
+  // Show loading state while auth is being checked
+  if (loading) {
+    return (
+      <LoadingContainer>
+        <LoadingSpinner />
+      </LoadingContainer>
+    );
+  }
 
-        <div style={{ 
-          background: 'white', 
-          padding: '2rem', 
-          borderRadius: '1rem', 
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-          textAlign: 'center'
-        }}>
-          <h2>Dashboard Coming Soon</h2>
-          <p>This feature is under development and will be available soon.</p>
-        </div>
-      </DashboardContent>
-    </DashboardContainer>
-  );
+  // Render dashboard based on user role
+  // 'artisan' = seller dashboard, 'buyer' or default = buyer dashboard
+  if (user?.role === 'artisan') {
+    return <SellerDashboard />;
+  }
+
+  return <BuyerDashboard />;
 };
 
 export default Dashboard;

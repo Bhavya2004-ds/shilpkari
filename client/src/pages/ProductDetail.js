@@ -4,9 +4,14 @@ import styled from 'styled-components';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { useCart } from '../contexts/CartContext';
+import { useWishlist } from '../contexts/WishlistContext';
 import ProductReview from '../components/ProductReview';
 import AddReview from '../components/AddReview';
-import { FaStar, FaFilter, FaRegStar, FaStarHalfAlt } from 'react-icons/fa';
+import ProductViewer360 from '../components/ProductViewer360';
+import VRProductViewer from '../components/VRProductViewer';
+import ARProductViewer from '../components/ARProductViewer';
+import { generate360Images, detectDeviceCapabilities, optimizeForMobile } from '../utils/vrarUtils';
+import { FaStar, FaFilter, FaRegStar, FaStarHalfAlt, FaTv, FaCamera, FaSync, FaHeart, FaRegHeart } from 'react-icons/fa';
 
 const ProductDetailContainer = styled.div`
   min-height: 100vh;
@@ -215,7 +220,7 @@ const ProductInfo = styled.div`
 `;
 
 const AddToCartButton = styled.button`
-  background-color: #e74c3c;
+  background-color: #d97706;
   color: white;
   border: none;
   padding: 1rem 2rem;
@@ -224,19 +229,18 @@ const AddToCartButton = styled.button`
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  width: 100%;
-  max-width: 300px;
-  margin: 1.5rem 0;
+  flex: 1;
+  max-width: 250px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  box-shadow: 0 2px 4px rgba(231, 76, 60, 0.2);
+  box-shadow: 0 2px 4px rgba(217, 119, 6, 0.2);
   
   &:hover {
-    background-color: #c0392b;
+    background-color: #b45309;
     transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(231, 76, 60, 0.3);
+    box-shadow: 0 4px 8px rgba(217, 119, 6, 0.3);
   }
   
   &:active {
@@ -244,6 +248,48 @@ const AddToCartButton = styled.button`
   }
   
   &:disabled {
+    background-color: #9ca3af;
+    cursor: not-allowed;
+    transform: none;
+  }
+`;
+
+const WishlistButton = styled.button`
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  border: 2px solid ${props => props.$active ? '#ef4444' : '#e5e7eb'};
+  background: ${props => props.$active ? '#fef2f2' : 'white'};
+  color: ${props => props.$active ? '#ef4444' : '#9ca3af'};
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  svg {
+    font-size: 1.4rem;
+    transition: transform 0.2s ease;
+  }
+  
+  &:hover {
+    border-color: #ef4444;
+    color: #ef4444;
+    background: #fef2f2;
+    transform: scale(1.05);
+    
+    svg {
+      transform: scale(1.1);
+    }
+  }
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin: 1.5rem 0;
+  flex-wrap: wrap;
 `;
 
 // Styled components for the review section
@@ -319,12 +365,12 @@ const SentimentItem = styled.div`
   border-radius: 9999px;
   font-size: 0.875rem;
   font-weight: 500;
-  background: ${props => 
-    props.type === 'positive' ? '#d1fae5' : 
-    props.type === 'negative' ? '#fee2e2' : '#e5e7eb'};
-  color: ${props => 
-    props.type === 'positive' ? '#065f46' : 
-    props.type === 'negative' ? '#991b1b' : '#4b5563'};
+  background: ${props =>
+    props.type === 'positive' ? '#d1fae5' :
+      props.type === 'negative' ? '#fee2e2' : '#e5e7eb'};
+  color: ${props =>
+    props.type === 'positive' ? '#065f46' :
+      props.type === 'negative' ? '#991b1b' : '#4b5563'};
 `;
 
 const FilterButtons = styled.div`
@@ -352,6 +398,60 @@ const FilterButton = styled.button`
   }
 `;
 
+// VR/AR Viewer Section
+const ViewerSection = styled.div`
+  margin-top: 3rem;
+  padding: 0 1rem;
+`;
+
+const ViewerHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+`;
+
+const ViewerTitle = styled.h2`
+  font-size: 1.75rem;
+  color: #1f2937;
+  margin: 0;
+`;
+
+const ViewerTabs = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  background: #f3f4f6;
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+`;
+
+const ViewerTab = styled.button`
+  padding: 0.5rem 1rem;
+  border: none;
+  background: ${props => props.active ? 'white' : 'transparent'};
+  color: ${props => props.active ? '#1f2937' : '#6b7280'};
+  border-radius: 0.375rem;
+  font-weight: ${props => props.active ? '600' : '500'};
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: ${props => props.active ? 'white' : 'rgba(255, 255, 255, 0.5)'};
+  }
+`;
+
+const ViewerContent = styled.div`
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+`;
+
 const ProductDetail = () => {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
@@ -360,8 +460,34 @@ const ProductDetail = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [filter, setFilter] = useState('all');
+  const [activeViewer, setActiveViewer] = useState('360');
+  const [deviceCapabilities, setDeviceCapabilities] = useState({});
+  const [images360, setImages360] = useState([]);
   const { addItem } = useCart();
-  
+  const { isInWishlist, toggleItem } = useWishlist();
+
+  // Detect device capabilities on mount
+  useEffect(() => {
+    const capabilities = detectDeviceCapabilities();
+    setDeviceCapabilities(capabilities);
+
+    // Set default viewer based on device capabilities
+    if (!capabilities.vr && !capabilities.ar) {
+      setActiveViewer('360');
+    } else if (capabilities.vr) {
+      setActiveViewer('vr');
+    }
+  }, []);
+
+  // Generate 360 images when product loads
+  useEffect(() => {
+    if (product && product.images && product.images.length > 0) {
+      const baseImage = product.images[0]?.url || product.images[0];
+      const generated360 = generate360Images(baseImage);
+      setImages360(generated360);
+    }
+  }, [product]);
+
   const runAiTask = async (endpoint, data) => {
     setAiLoading(true);
     try {
@@ -391,55 +517,55 @@ const ProductDetail = () => {
       try {
         setLoading(true);
         console.log('Fetching product with ID:', id);
-        
+
         // Make the API call
         const response = await api.get(`/products/${id}`);
         console.log('API Response:', response);
-        
+
         // The product data is directly in the response data
         const productData = response.data;
-        
+
         if (!productData) {
           throw new Error('No product data received');
         }
-        
+
         // Transform the data to match the expected structure
         const formattedProduct = {
           // Handle both _id and id
           id: productData._id || productData.id,
           _id: productData._id || productData.id,
           reviews: productData.reviews || [],
-          
+
           // Basic info
           name: productData.name || productData.title || 'Unnamed Product',
           description: productData.description || 'No description available',
-          
+
           // Handle price which might be an object or number
-          price: productData.price ? 
-                 (typeof productData.price === 'object' ? 
-                   parseFloat(productData.price.$numberInt || 0) : 
-                   parseFloat(productData.price)) : 
-                 0,
-                  
+          price: productData.price ?
+            (typeof productData.price === 'object' ?
+              parseFloat(productData.price.$numberInt || 0) :
+              parseFloat(productData.price)) :
+            0,
+
           // Handle images (could be array or single image)
-          images: Array.isArray(productData.images) ? 
-                  productData.images : 
-                  (productData.image ? [productData.image] : []),
-                  
+          images: Array.isArray(productData.images) ?
+            productData.images :
+            (productData.image ? [productData.image] : []),
+
           // Stock/availability
           inStock: (productData.inventory?.stock || productData.stock || 0) > 0,
           stock: productData.inventory?.stock || productData.stock || 0,
-          
+
           // Additional details
           category: productData.category || 'Uncategorized',
           material: productData.material || 'Not specified',
           dimensions: productData.dimensions || 'Not specified',
           weight: productData.weight || 'Not specified',
-          
+
           // Include any additional fields from the API
           ...productData
         };
-        
+
         console.log('Formatted product:', formattedProduct);
         setProduct(formattedProduct);
         setReviews(formattedProduct.reviews);
@@ -450,7 +576,7 @@ const ProductDetail = () => {
         setLoading(false);
       }
     };
-    
+
     // Check if the ID is valid before fetching
     if (id && id !== 'undefined') {
       fetchProduct();
@@ -490,14 +616,14 @@ const ProductDetail = () => {
   };
 
   if (loading) return <div style={{ textAlign: 'center', padding: '2rem' }}>Loading product details...</div>;
-  
+
   // Use the error state to show the error page, matching the screenshot
   if (error) return (
     <div style={{ textAlign: 'center', padding: '2rem' }}>
       <h2 style={{ color: '#e74c3c', marginBottom: '1rem' }}>Error Loading Product</h2>
       <p>We're having trouble loading this product. Please try again later. ({error})</p>
-      <button 
-        onClick={() => window.history.back()} 
+      <button
+        onClick={() => window.history.back()}
         style={{
           marginTop: '1rem',
           padding: '0.5rem 1rem',
@@ -515,324 +641,396 @@ const ProductDetail = () => {
 
   return (
     <>
-    <ProductDetailContainer>
-      <ProductDetailContent>
-        <ProductImage>
-          {(() => {
-            // Debug log to see the actual images data
-            console.log('Product images:', product.images);
-            
-            // Get the first image URL
-            let imageUrl = '';
-            
-            if (Array.isArray(product.images) && product.images.length > 0) {
-              // If images is an array of URLs (strings)
-              imageUrl = product.images[0];
-            } else if (product.images && typeof product.images === 'string') {
-              // If images is a direct string URL
-              imageUrl = product.images;
-            } else if (product.images && product.images.url) {
-              // If images is an object with a url property
-              imageUrl = product.images.url;
-            }
-            
-            console.log('Using image URL:', imageUrl);
-            
-            return (
-              <div style={{
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: '#f8fafc',
-                borderRadius: '8px',
-                padding: '2rem',
-                minHeight: '400px'
-              }}>
-                {imageUrl ? (
-                  <img 
-                    src={imageUrl}
-                    alt={product.name || 'Product image'}
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = 'https://via.placeholder.com/500x500?text=No+Image+Available';
-                    }}
-                    style={{ 
-                      maxWidth: '100%',
-                      maxHeight: '400px',
-                      width: 'auto',
-                      height: 'auto',
-                      objectFit: 'contain',
-                      borderRadius: '8px'
-                    }}
+      <ProductDetailContainer>
+        <ProductDetailContent>
+          <ProductImage>
+            {(() => {
+              // Debug log to see the actual images data
+              console.log('Product images:', product.images);
+
+              // Get the first image URL
+              let imageUrl = '';
+
+              if (Array.isArray(product.images) && product.images.length > 0) {
+                // If images is an array of URLs (strings)
+                imageUrl = product.images[0];
+              } else if (product.images && typeof product.images === 'string') {
+                // If images is a direct string URL
+                imageUrl = product.images;
+              } else if (product.images && product.images.url) {
+                // If images is an object with a url property
+                imageUrl = product.images.url;
+              }
+
+              console.log('Using image URL:', imageUrl);
+
+              return (
+                <div style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: '#f8fafc',
+                  borderRadius: '8px',
+                  padding: '2rem',
+                  minHeight: '400px'
+                }}>
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt={product.name || 'Product image'}
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://via.placeholder.com/500x500?text=No+Image+Available';
+                      }}
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '400px',
+                        width: 'auto',
+                        height: 'auto',
+                        objectFit: 'contain',
+                        borderRadius: '8px'
+                      }}
+                    />
+                  ) : (
+                    <div style={{ textAlign: 'center', color: '#64748b' }}>
+                      <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📷</div>
+                      <p>No image available</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </ProductImage>
+          <ProductInfo>
+            <h1>{product.name || 'Product Name'}</h1>
+            <div style={{ display: 'flex', alignItems: 'center', margin: '1rem 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginRight: '2rem' }}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <FaStar
+                    key={star}
+                    color={star <= Math.round(product.rating?.average || 0) ? '#FFD700' : '#e4e5e9'}
+                    style={{ marginRight: 4 }}
                   />
-                ) : (
-                  <div style={{ textAlign: 'center', color: '#64748b' }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📷</div>
-                    <p>No image available</p>
-                  </div>
+                ))}
+                <span style={{ marginLeft: '0.5rem', color: '#64748b' }}>
+                  ({product.reviews?.length || 0} reviews)
+                </span>
+              </div>
+              {product.inStock ? (
+                <span style={{ color: '#10b981', fontWeight: 500 }}>In Stock</span>
+              ) : (
+                <span style={{ color: '#ef4444', fontWeight: 500 }}>Out of Stock</span>
+              )}
+            </div>
+
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '1rem 0 1.5rem' }}>
+              ₹{product.price?.toLocaleString('en-IN') || '0'}
+            </div>
+
+            {product.category && (
+              <div style={{ marginBottom: '1rem' }}>
+                <span style={{ color: '#64748b' }}>Category: </span>
+                <span style={{ fontWeight: 500 }}>{product.category}</span>
+              </div>
+            )}
+
+            {product.material && (
+              <div style={{ marginBottom: '1rem' }}>
+                <span style={{ color: '#64748b' }}>Material: </span>
+                <span>{product.material}</span>
+              </div>
+            )}
+
+            <div style={{ margin: '1.5rem 0' }}>
+              <h3 style={{ marginBottom: '0.5rem' }}>Description</h3>
+              <p style={{ color: '#4b5563', lineHeight: '1.6' }}>
+                {product.description || 'No description available for this product.'}
+              </p>
+            </div>
+
+            <ButtonGroup>
+              <AddToCartButton
+                onClick={() => {
+                  addItem({
+                    id,
+                    name: product.name,
+                    price: product.price,
+                    image: product.images?.[0]?.url || product.images?.[0],
+                    quantity: 1
+                  });
+                  toast.success(`${product.name} added to cart`);
+                }}
+                disabled={!product.inStock}
+              >
+                {product.inStock ? 'Add to Cart' : 'Out of Stock'}
+              </AddToCartButton>
+
+              <WishlistButton
+                $active={isInWishlist(id)}
+                onClick={() => {
+                  toggleItem({
+                    id,
+                    name: product.name,
+                    price: product.price,
+                    image: product.images?.[0]?.url || product.images?.[0]
+                  });
+                }}
+                title={isInWishlist(id) ? 'Remove from Wishlist' : 'Add to Wishlist'}
+              >
+                {isInWishlist(id) ? <FaHeart /> : <FaRegHeart />}
+              </WishlistButton>
+            </ButtonGroup>
+
+            {/* Additional product details */}
+            <div style={{ marginTop: '2rem', borderTop: '1px solid #eee', paddingTop: '1rem' }}>
+              <h3>Product Details</h3>
+              <p><strong>Material:</strong> {product.material || 'Not specified'}</p>
+
+              {product.dimensions && (
+                <p>
+                  <strong>Dimensions:</strong>
+                  {typeof product.dimensions === 'string' ? (
+                    product.dimensions
+                  ) : (
+                    <>
+                      {product.dimensions.length && `L: ${product.dimensions.length} `}
+                      {product.dimensions.width && `W: ${product.dimensions.width} `}
+                      {product.dimensions.height && `H: ${product.dimensions.height} `}
+                      {product.dimensions.unit && `(${product.dimensions.unit})`}
+                      {!product.dimensions.length && !product.dimensions.width &&
+                        !product.dimensions.height && product.dimensions.description &&
+                        product.dimensions.description}
+                    </>
+                  )}
+                </p>
+              )}
+
+              {(product.dimensions?.weight || product.weight) && (
+                <p><strong>Weight:</strong> {product.dimensions?.weight || product.weight} {product.dimensions?.unit || 'g'}</p>
+              )}
+            </div>
+
+            {/* AI Features (conditionally rendered) */}
+            {(product.demandForecast || product.qualityCheck) && (
+              <div style={{ marginTop: '1.5rem', padding: '1rem', background: '#f9f9f9', borderRadius: '6px' }}>
+                {product.demandForecast?.predictedDemand && (
+                  <p style={{ margin: '0.5rem 0' }}>
+                    <strong>Demand Forecast:</strong> {product.demandForecast.predictedDemand} units
+                    <span style={{ color: '#6b7280', fontSize: '0.9em', marginLeft: '0.5rem' }}>
+                      ({Math.round((product.demandForecast.confidence || 0) * 100)}% confidence)
+                    </span>
+                  </p>
+                )}
+
+                {product.qualityCheck?.score && (
+                  <p style={{ margin: '0.5rem 0' }}>
+                    <strong>Quality Score:</strong> {product.qualityCheck.score}/100
+                    <span style={{
+                      color: product.qualityCheck.isApproved ? '#16a34a' : '#ef4444',
+                      marginLeft: '0.5rem'
+                    }}>
+                      ({product.qualityCheck.isApproved ? 'Approved' : 'Needs Improvement'})
+                    </span>
+                  </p>
                 )}
               </div>
-            );
-          })()}
-        </ProductImage>
-        <ProductInfo>
-          <h1>{product.name || 'Product Name'}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', margin: '1rem 0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginRight: '2rem' }}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <FaStar 
-                  key={star} 
-                  color={star <= Math.round(product.rating?.average || 0) ? '#FFD700' : '#e4e5e9'} 
-                  style={{ marginRight: 4 }} 
-                />
-              ))}
-              <span style={{ marginLeft: '0.5rem', color: '#64748b' }}>
-                ({product.reviews?.length || 0} reviews)
-              </span>
-            </div>
-            {product.inStock ? (
-              <span style={{ color: '#10b981', fontWeight: 500 }}>In Stock</span>
-            ) : (
-              <span style={{ color: '#ef4444', fontWeight: 500 }}>Out of Stock</span>
             )}
-          </div>
-          
-          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '1rem 0 1.5rem' }}>
-            ₹{product.price?.toLocaleString('en-IN') || '0'}
-          </div>
-          
-          {product.category && (
-            <div style={{ marginBottom: '1rem' }}>
-              <span style={{ color: '#64748b' }}>Category: </span>
-              <span style={{ fontWeight: 500 }}>{product.category}</span>
-            </div>
-          )}
-          
-          {product.material && (
-            <div style={{ marginBottom: '1rem' }}>
-              <span style={{ color: '#64748b' }}>Material: </span>
-              <span>{product.material}</span>
-            </div>
-          )}
-          
-          <div style={{ margin: '1.5rem 0' }}>
-            <h3 style={{ marginBottom: '0.5rem' }}>Description</h3>
-            <p style={{ color: '#4b5563', lineHeight: '1.6' }}>
-              {product.description || 'No description available for this product.'}
-            </p>
-          </div>
-          
-          <AddToCartButton 
-            onClick={() => {
-              addItem({ 
-                id, 
-                name: product.name, 
-                price: product.price, 
-                image: product.images?.[0]?.url, 
-                quantity: 1 
-              });
-              toast.success(`${product.name} added to cart`);
-            }}
-            disabled={!product.inStock}
-          >
-            {product.inStock ? 'Add to Cart' : 'Out of Stock'}
-          </AddToCartButton>
-          
-          {/* Additional product details */}
-          <div style={{ marginTop: '2rem', borderTop: '1px solid #eee', paddingTop: '1rem' }}>
-            <h3>Product Details</h3>
-            <p><strong>Material:</strong> {product.material || 'Not specified'}</p>
-            
-            {product.dimensions && (
-              <p>
-                <strong>Dimensions:</strong> 
-                {typeof product.dimensions === 'string' ? (
-                  product.dimensions
-                ) : (
-                  <>
-                    {product.dimensions.length && `L: ${product.dimensions.length} `}
-                    {product.dimensions.width && `W: ${product.dimensions.width} `}
-                    {product.dimensions.height && `H: ${product.dimensions.height} `}
-                    {product.dimensions.unit && `(${product.dimensions.unit})`}
-                    {!product.dimensions.length && !product.dimensions.width && 
-                      !product.dimensions.height && product.dimensions.description && 
-                      product.dimensions.description}
-                  </>
-                )}
-              </p>
-            )}
-            
-            {(product.dimensions?.weight || product.weight) && (
-              <p><strong>Weight:</strong> {product.dimensions?.weight || product.weight} {product.dimensions?.unit || 'g'}</p>
-            )}
-          </div>
-          
-          {/* AI Features (conditionally rendered) */}
-          {(product.demandForecast || product.qualityCheck) && (
-            <div style={{ marginTop: '1.5rem', padding: '1rem', background: '#f9f9f9', borderRadius: '6px' }}>
-              {product.demandForecast?.predictedDemand && (
-                <p style={{ margin: '0.5rem 0' }}>
-                  <strong>Demand Forecast:</strong> {product.demandForecast.predictedDemand} units
-                  <span style={{ color: '#6b7280', fontSize: '0.9em', marginLeft: '0.5rem' }}>
-                    ({Math.round((product.demandForecast.confidence || 0) * 100)}% confidence)
-                  </span>
-                </p>
-              )}
-              
-              {product.qualityCheck?.score && (
-                <p style={{ margin: '0.5rem 0' }}>
-                  <strong>Quality Score:</strong> {product.qualityCheck.score}/100
-                  <span style={{ 
-                    color: product.qualityCheck.isApproved ? '#16a34a' : '#ef4444',
-                    marginLeft: '0.5rem'
-                  }}>
-                    ({product.qualityCheck.isApproved ? 'Approved' : 'Needs Improvement'})
-                  </span>
-                </p>
-              )}
-            </div>
-          )}
-      </ProductInfo>
-    </ProductDetailContent>
-    
-    <ReviewSection>
-      <ReviewHeader>
-        <ReviewTitle>Customer Reviews</ReviewTitle>
-      </ReviewHeader>
-      
-      {/* Review Summary */}
-      {reviews.length > 0 && (
-        <>
-          <ReviewSummary>
-            <AverageRating>
-              <RatingScore>
-                {reviews.length > 0 
-                  ? (reviews.reduce((sum, review) => sum + (review.rating || 3), 0) / reviews.length).toFixed(1)
-                  : '0.0'}
-              </RatingScore>
-              <StarRating>
-                {[1, 2, 3, 4, 5].map((star) => {
-                  const avgRating = reviews.reduce((sum, review) => sum + (review.rating || 3), 0) / reviews.length;
-                  return (
-                    <span key={star}>
-                      {star <= Math.floor(avgRating) ? (
-                        <FaStar />
-                      ) : star - 0.5 <= avgRating ? (
-                        <FaStarHalfAlt />
-                      ) : (
-                        <FaRegStar />
-                      )}
+          </ProductInfo>
+        </ProductDetailContent>
+
+        <ReviewSection>
+          <ReviewHeader>
+            <ReviewTitle>Customer Reviews</ReviewTitle>
+          </ReviewHeader>
+
+          {/* Review Summary */}
+          {reviews.length > 0 && (
+            <>
+              <ReviewSummary>
+                <AverageRating>
+                  <RatingScore>
+                    {reviews.length > 0
+                      ? (reviews.reduce((sum, review) => sum + (review.rating || 3), 0) / reviews.length).toFixed(1)
+                      : '0.0'}
+                  </RatingScore>
+                  <StarRating>
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const avgRating = reviews.reduce((sum, review) => sum + (review.rating || 3), 0) / reviews.length;
+                      return (
+                        <span key={star}>
+                          {star <= Math.floor(avgRating) ? (
+                            <FaStar />
+                          ) : star - 0.5 <= avgRating ? (
+                            <FaStarHalfAlt />
+                          ) : (
+                            <FaRegStar />
+                          )}
+                        </span>
+                      );
+                    })}
+                  </StarRating>
+                  <TotalReviews>{reviews.length} reviews</TotalReviews>
+                </AverageRating>
+
+                <SentimentSummary>
+                  <SentimentItem type="positive">
+                    <span>😊</span>
+                    <span>
+                      {reviews.filter(r => r.sentiment === 'positive').length} Positive
                     </span>
-                  );
-                })}
-              </StarRating>
-              <TotalReviews>{reviews.length} reviews</TotalReviews>
-            </AverageRating>
-            
-            <SentimentSummary>
-              <SentimentItem type="positive">
-                <span>😊</span>
-                <span>
-                  {reviews.filter(r => r.sentiment === 'positive').length} Positive
-                </span>
-              </SentimentItem>
-              <SentimentItem type="neutral">
-                <span>😐</span>
-                <span>
-                  {reviews.filter(r => r.sentiment === 'neutral').length} Neutral
-                </span>
-              </SentimentItem>
-              <SentimentItem type="negative">
-                <span>😟</span>
-                <span>
-                  {reviews.filter(r => r.sentiment === 'negative').length} Negative
-                </span>
-              </SentimentItem>
-            </SentimentSummary>
-          </ReviewSummary>
-          
-          {/* Filter Buttons */}
-          <FilterButtons>
-            <FilterButton 
-              onClick={() => setFilter('all')} 
-              active={filter === 'all'}
-            >
-              <FaFilter /> All Reviews
-            </FilterButton>
-            <FilterButton 
-              onClick={() => setFilter('positive')} 
-              active={filter === 'positive'}
-            >
-              😊 Positive
-            </FilterButton>
-            <FilterButton 
-              onClick={() => setFilter('neutral')} 
-              active={filter === 'neutral'}
-            >
-              😐 Neutral
-            </FilterButton>
-            <FilterButton 
-              onClick={() => setFilter('negative')} 
-              active={filter === 'negative'}
-            >
-              😟 Negative
-            </FilterButton>
-          </FilterButtons>
-        </>
-      )}
-      
-      {/* Add Review Form */}
-      <AddReview 
-        productId={product.id} 
-        onReviewAdded={(newReview) => {
-          setReviews([...reviews, newReview]);
-          toast.success('Thank you for your review!');
-        }} 
-      />
-      
-      {/* Reviews List */}
-      {reviews.length > 0 ? (
-        <div style={{ marginTop: '1rem' }}>
-          {reviews
-            .filter(review => filter === 'all' || review.sentiment === filter)
-            .map((review, index) => (
-              <ProductReview 
-                key={index} 
-                review={review} 
-                productId={product.id} 
-              />
-            ))}
-          
-          {reviews.filter(review => filter === 'all' || review.sentiment === filter).length === 0 && (
-            <div style={{ 
-              textAlign: 'center', 
-              padding: '2rem', 
-              backgroundColor: '#f9fafb', 
+                  </SentimentItem>
+                  <SentimentItem type="neutral">
+                    <span>😐</span>
+                    <span>
+                      {reviews.filter(r => r.sentiment === 'neutral').length} Neutral
+                    </span>
+                  </SentimentItem>
+                  <SentimentItem type="negative">
+                    <span>😟</span>
+                    <span>
+                      {reviews.filter(r => r.sentiment === 'negative').length} Negative
+                    </span>
+                  </SentimentItem>
+                </SentimentSummary>
+              </ReviewSummary>
+
+              {/* Filter Buttons */}
+              <FilterButtons>
+                <FilterButton
+                  onClick={() => setFilter('all')}
+                  active={filter === 'all'}
+                >
+                  <FaFilter /> All Reviews
+                </FilterButton>
+                <FilterButton
+                  onClick={() => setFilter('positive')}
+                  active={filter === 'positive'}
+                >
+                  😊 Positive
+                </FilterButton>
+                <FilterButton
+                  onClick={() => setFilter('neutral')}
+                  active={filter === 'neutral'}
+                >
+                  😐 Neutral
+                </FilterButton>
+                <FilterButton
+                  onClick={() => setFilter('negative')}
+                  active={filter === 'negative'}
+                >
+                  😟 Negative
+                </FilterButton>
+              </FilterButtons>
+            </>
+          )}
+
+          {/* Add Review Form */}
+          <AddReview
+            productId={product._id}
+            onReviewAdded={(newReview) => {
+              // The backend returns review with user populated
+              setReviews(prev => [...prev, newReview]);
+              toast.success('Thank you for your review!');
+            }}
+          />
+
+          {/* Reviews List */}
+          {reviews.length > 0 ? (
+            <div style={{ marginTop: '1rem' }}>
+              {reviews
+                .filter(review => filter === 'all' || review.sentiment === filter)
+                .map((review, index) => (
+                  <ProductReview
+                    key={index}
+                    review={review}
+                    productId={product._id}
+                  />
+                ))}
+
+              {reviews.filter(review => filter === 'all' || review.sentiment === filter).length === 0 && (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '2rem',
+                  backgroundColor: '#f9fafb',
+                  borderRadius: '0.5rem',
+                  marginTop: '1.5rem'
+                }}>
+                  <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
+                    No {filter} reviews found.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{
+              textAlign: 'center',
+              padding: '2rem',
+              backgroundColor: '#f9fafb',
               borderRadius: '0.5rem',
               marginTop: '1.5rem'
             }}>
               <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
-                No {filter} reviews found.
+                No reviews yet. Be the first to review this product!
               </p>
             </div>
           )}
-        </div>
-      ) : (
-        <div style={{ 
-          textAlign: 'center', 
-          padding: '2rem', 
-          backgroundColor: '#f9fafb', 
-          borderRadius: '0.5rem',
-          marginTop: '1.5rem'
-        }}>
-          <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
-            No reviews yet. Be the first to review this product!
-          </p>
-        </div>
-      )}
-    </ReviewSection>
+        </ReviewSection>
+
+        {/* VR/AR Viewer Section */}
+        <ViewerSection>
+          <ViewerHeader>
+            <ViewerTitle>Immersive Experience</ViewerTitle>
+            <ViewerTabs>
+              <ViewerTab
+                active={activeViewer === '360'}
+                onClick={() => setActiveViewer('360')}
+              >
+                <FaSync /> 360° View
+              </ViewerTab>
+              {deviceCapabilities.vr && (
+                <ViewerTab
+                  active={activeViewer === 'vr'}
+                  onClick={() => setActiveViewer('vr')}
+                >
+                  <FaTv /> VR
+                </ViewerTab>
+              )}
+              {deviceCapabilities.ar && (
+                <ViewerTab
+                  active={activeViewer === 'ar'}
+                  onClick={() => setActiveViewer('ar')}
+                >
+                  <FaCamera /> AR
+                </ViewerTab>
+              )}
+            </ViewerTabs>
+          </ViewerHeader>
+
+          <ViewerContent>
+            {activeViewer === '360' && (
+              <ProductViewer360
+                images={images360}
+                productName={product.name}
+              />
+            )}
+            {activeViewer === 'vr' && (
+              <VRProductViewer
+                product={product}
+                vrModelUrl={product.images?.[0]?.vr360Url}
+                images={images360}
+              />
+            )}
+            {activeViewer === 'ar' && (
+              <ARProductViewer
+                product={product}
+                arModelUrl={product.images?.[0]?.arModelUrl}
+                images={images360}
+              />
+            )}
+          </ViewerContent>
+        </ViewerSection>
       </ProductDetailContainer>
     </>
   );

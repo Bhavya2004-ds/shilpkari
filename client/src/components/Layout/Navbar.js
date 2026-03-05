@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCart } from '../../contexts/CartContext';
+import { useWishlist } from '../../contexts/WishlistContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FiShoppingCart, FiHeart } from 'react-icons/fi';
 
 const NavbarContainer = styled.nav`
   position: fixed;
@@ -39,23 +42,6 @@ const Logo = styled(Link)`
   &:hover {
     color: #b45309;
   }
-`;
-
-const LogoIcon = styled.div`
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #d97706, #b45309);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 0.5rem;
-  color: white;
-  font-size: 1.2rem;
-  background-image: url('${props => props.bgImage || ''}');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
 `;
 
 const NavLinks = styled.div`
@@ -108,7 +94,64 @@ const NavLink = styled(Link)`
 const UserMenu = styled.div`
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
+`;
+
+const IconButtonsGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const IconButton = styled(Link)`
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #f8f9fa;
+  color: #374151;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  border: 1px solid #e5e7eb;
+
+  &:hover {
+    background: #fef3c7;
+    color: #d97706;
+    border-color: #d97706;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(217, 119, 6, 0.2);
+  }
+
+  svg {
+    font-size: 1.25rem;
+  }
+`;
+
+const Badge = styled.span`
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+  animation: ${props => props.$animate ? 'pulse 0.3s ease' : 'none'};
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+  }
 `;
 
 const LanguageSelector = styled.select`
@@ -124,6 +167,10 @@ const LanguageSelector = styled.select`
   &:focus {
     outline: none;
     border-color: #d97706;
+  }
+
+  @media (max-width: 576px) {
+    display: none;
   }
 `;
 
@@ -257,6 +304,7 @@ const MobileMenu = styled(motion.div)`
   border-top: 1px solid #e5e7eb;
   padding: 1rem;
   display: none;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
 
   @media (max-width: 768px) {
     display: block;
@@ -283,12 +331,25 @@ const MobileNavLink = styled(Link)`
   }
 `;
 
+const MobileIconsRow = styled.div`
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 0.5rem;
+`;
+
 const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth();
+  const { items } = useCart();
+  const { itemCount: wishlistCount } = useWishlist();
   const { t, currentLanguage, changeLanguage, getAvailableLanguages } = useLanguage();
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+
+  // Calculate cart count
+  const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleLogout = () => {
     logout();
@@ -316,6 +377,17 @@ const Navbar = () => {
         </NavLinks>
 
         <UserMenu>
+          <IconButtonsGroup>
+            <IconButton to="/wishlist" title="Wishlist">
+              <FiHeart />
+              {wishlistCount > 0 && <Badge>{wishlistCount}</Badge>}
+            </IconButton>
+            <IconButton to="/cart" title="Shopping Cart">
+              <FiShoppingCart />
+              {cartCount > 0 && <Badge $animate>{cartCount}</Badge>}
+            </IconButton>
+          </IconButtonsGroup>
+
           <LanguageSelector value={currentLanguage} onChange={handleLanguageChange}>
             {getAvailableLanguages().map(lang => (
               <option key={lang.code} value={lang.code}>
@@ -325,8 +397,11 @@ const Navbar = () => {
           </LanguageSelector>
 
           {isAuthenticated ? (
-            <UserDropdown>
-              <UserButton onClick={() => setShowUserMenu(!showUserMenu)}>
+            <UserDropdown
+              onMouseEnter={() => setShowUserMenu(true)}
+              onMouseLeave={() => setShowUserMenu(false)}
+            >
+              <UserButton>
                 <UserAvatar>
                   {user?.name?.charAt(0)?.toUpperCase() || 'U'}
                 </UserAvatar>
@@ -382,6 +457,16 @@ const Navbar = () => {
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
           >
+            <MobileIconsRow>
+              <IconButton to="/wishlist" title="Wishlist">
+                <FiHeart />
+                {wishlistCount > 0 && <Badge>{wishlistCount}</Badge>}
+              </IconButton>
+              <IconButton to="/cart" title="Shopping Cart">
+                <FiShoppingCart />
+                {cartCount > 0 && <Badge $animate>{cartCount}</Badge>}
+              </IconButton>
+            </MobileIconsRow>
             <MobileNavLink to="/">{t('navigation.home')}</MobileNavLink>
             <MobileNavLink to="/products">{t('navigation.products')}</MobileNavLink>
             <MobileNavLink to="/artisans">{t('navigation.artisans')}</MobileNavLink>

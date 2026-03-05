@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import axios from 'axios';
+import api from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
+import toast from 'react-hot-toast';
 
 const ReviewForm = styled.form`
   background: white;
@@ -117,6 +119,7 @@ const SentimentPreview = styled.div`
 `;
 
 const AddReview = ({ productId, onReviewAdded }) => {
+  const { isAuthenticated } = useAuth();
   const [formData, setFormData] = useState({
     author: '',
     rating: 0,
@@ -142,7 +145,7 @@ const AddReview = ({ productId, onReviewAdded }) => {
 
   const analyzeSentiment = async (text) => {
     try {
-      const { data } = await axios.post('/api/sentiment/analyze', { text });
+      const { data } = await api.post('/sentiment/analyze', { text });
       setSentiment(data.data);
     } catch (error) {
       console.error('Error analyzing sentiment:', error);
@@ -152,8 +155,19 @@ const AddReview = ({ productId, onReviewAdded }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    if (!isAuthenticated) {
+      setError('Please login to submit a review');
+      toast.error('Please login to submit a review');
+      return;
+    }
+    
     if (!formData.text.trim()) {
       setError('Please enter your review text');
+      return;
+    }
+    
+    if (formData.rating === 0) {
+      setError('Please select a rating');
       return;
     }
     
@@ -161,19 +175,24 @@ const AddReview = ({ productId, onReviewAdded }) => {
     setError('');
     
     try {
-      const reviewData = {
-        ...formData,
-        date: new Date().toISOString(),
+      // If text is long enough and no sentiment yet, wait for analysis
+      if (formData.text.length > 10 && !sentiment) {
+        // Analyze sentiment before submitting
+        await analyzeSentiment(formData.text);
+        // Give a moment for the sentiment to be set
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      // Save the review to the backend
+      const { data } = await api.post(`/products/${productId}/reviews`, {
+        rating: formData.rating,
+        comment: formData.text,
         sentiment: sentiment?.sentiment,
         sentimentScore: sentiment?.score
-      };
+      });
       
-      // In a real app, you would save the review to your backend
-      // const { data } = await axios.post(`/api/products/${productId}/reviews`, reviewData);
-      // onReviewAdded(data.review);
-      
-      // For demo purposes, we'll just call the callback with the review data
-      onReviewAdded(reviewData);
+      // Call the callback with the saved review
+      onReviewAdded(data);
       
       // Reset form
       setFormData({
@@ -185,7 +204,16 @@ const AddReview = ({ productId, onReviewAdded }) => {
       
     } catch (error) {
       console.error('Error submitting review:', error);
-      setError('Failed to submit review. Please try again.');
+      if (error.response?.status === 401) {
+        setError('Please login to submit a review');
+        toast.error('Please login to submit a review');
+      } else if (error.response?.status === 403) {
+        setError(error.response.data.message || 'You are not allowed to review this product');
+        toast.error(error.response.data.message || 'You are not allowed to review this product');
+      } else {
+        setError('Failed to submit review. Please try again.');
+        toast.error('Failed to submit review. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -214,6 +242,21 @@ const AddReview = ({ productId, onReviewAdded }) => {
     <ReviewForm onSubmit={handleSubmit}>
       <FormTitle>Write a Review</FormTitle>
       
+      {!isAuthenticated && (
+        <div style={{ 
+          backgroundColor: '#fef3c7', 
+          border: '1px solid #f59e0b', 
+          borderRadius: '0.5rem', 
+          padding: '1rem', 
+          marginBottom: '1.5rem',
+          color: '#92400e'
+        }}>
+          <p style={{ margin: 0, fontWeight: 500 }}>
+            Please <a href="/login" style={{ color: '#d97706', textDecoration: 'underline' }}>login</a> to submit a review
+          </p>
+        </div>
+      )}
+      
       <FormGroup>
         <Label htmlFor="author">Your Name (optional)</Label>
         <Input
@@ -223,6 +266,7 @@ const AddReview = ({ productId, onReviewAdded }) => {
           value={formData.author}
           onChange={handleChange}
           placeholder="Enter your name"
+          disabled={!isAuthenticated || loading}
         />
       </FormGroup>
       
@@ -234,9 +278,10 @@ const AddReview = ({ productId, onReviewAdded }) => {
               key={star}
               type="button"
               filled={star <= (hoverRating || formData.rating)}
-              onMouseEnter={() => setHoverRating(star)}
+              onMouseEnter={() => isAuthenticated && setHoverRating(star)}
               onMouseLeave={() => setHoverRating(0)}
-              onClick={() => setFormData(prev => ({ ...prev, rating: star }))}
+              onClick={() => isAuthenticated && setFormData(prev => ({ ...prev, rating: star }))}
+              disabled={!isAuthenticated || loading}
             >
               {star <= (hoverRating || formData.rating) ? '★' : '☆'}
             </StarButton>
@@ -252,7 +297,7 @@ const AddReview = ({ productId, onReviewAdded }) => {
           value={formData.text}
           onChange={handleChange}
           placeholder="Share your thoughts about this product..."
-          disabled={loading}
+          disabled={!isAuthenticated || loading}
         />
         {formData.text.length > 0 && formData.text.length < 10 && (
           <small style={{ color: '#6b7280' }}>Write a bit more for sentiment analysis</small>
@@ -267,7 +312,7 @@ const AddReview = ({ productId, onReviewAdded }) => {
       
       {error && <div style={{ color: '#ef4444', marginBottom: '1rem' }}>{error}</div>}
       
-      <SubmitButton type="submit" disabled={loading || !formData.text.trim()}>
+      <SubmitButton type="submit" disabled={!isAuthenticated || loading || !formData.text.trim()}>
         {loading ? 'Submitting...' : 'Submit Review'}
       </SubmitButton>
     </ReviewForm>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import axios from 'axios';
+import api from '../lib/api';
 
 const ReviewContainer = styled.div`
   background: white;
@@ -54,26 +54,27 @@ const SentimentIcon = styled.span`
 `;
 
 const ProductReview = ({ review, productId }) => {
-  const [sentiment, setSentiment] = useState(review.sentiment);
+  const [sentiment, setSentiment] = useState(review.sentiment || null);
   const [loading, setLoading] = useState(false);
 
   // Analyze sentiment when component mounts if not already analyzed
   React.useEffect(() => {
-    if (!sentiment && review.text) {
-      analyzeSentiment(review.text);
+    // Only analyze if no sentiment exists and there's comment text
+    if (!sentiment && review.comment && !review.sentiment) {
+      analyzeSentiment(review.comment);
     }
-  }, [review.text]);
+  }, [review.comment, review.sentiment]);
 
   const analyzeSentiment = async (text) => {
     if (!text.trim() || sentiment) return;
     
     setLoading(true);
     try {
-      const { data } = await axios.post('/api/sentiment/analyze', { text });
+      const { data } = await api.post('/sentiment/analyze', { text });
       setSentiment(data.data.sentiment);
       
       // In a real app, you'd want to save this to your database
-      // await axios.patch(`/api/products/${productId}/reviews/${review.id}`, {
+      // await api.patch(`/products/${productId}/reviews/${review.id}`, {
       //   sentiment: data.data.sentiment,
       //   sentimentScore: data.data.score
       // });
@@ -96,7 +97,7 @@ const ProductReview = ({ review, productId }) => {
   return (
     <ReviewContainer>
       <ReviewHeader>
-        <ReviewAuthor>{review.author || 'Anonymous'}</ReviewAuthor>
+        <ReviewAuthor>{review.user?.name || review.author || 'Anonymous'}</ReviewAuthor>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           {loading ? (
             <span>Analyzing...</span>
@@ -107,11 +108,11 @@ const ProductReview = ({ review, productId }) => {
             </SentimentBadge>
           ) : null}
           <ReviewDate>
-            {new Date(review.date || new Date()).toLocaleDateString()}
+            {new Date(review.createdAt || review.date || new Date()).toLocaleDateString()}
           </ReviewDate>
         </div>
       </ReviewHeader>
-      <ReviewText>{review.text}</ReviewText>
+      <ReviewText>{review.comment || review.text}</ReviewText>
       {review.rating && (
         <div style={{ color: '#d97706', fontWeight: 500 }}>
           {'★'.repeat(Math.round(review.rating))}{'☆'.repeat(5 - Math.round(review.rating))}

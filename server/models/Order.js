@@ -3,8 +3,7 @@ const mongoose = require('mongoose');
 const orderSchema = new mongoose.Schema({
   orderNumber: {
     type: String,
-    unique: true,
-    required: true
+    unique: true
   },
   buyer: {
     type: mongoose.Schema.Types.ObjectId,
@@ -112,7 +111,7 @@ const orderSchema = new mongoose.Schema({
 });
 
 // Generate order number
-orderSchema.pre('save', async function(next) {
+orderSchema.pre('save', async function (next) {
   if (this.isNew) {
     const count = await mongoose.model('Order').countDocuments();
     this.orderNumber = `SPK${Date.now().toString().slice(-6)}${(count + 1).toString().padStart(4, '0')}`;

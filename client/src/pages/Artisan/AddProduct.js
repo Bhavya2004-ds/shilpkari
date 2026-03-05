@@ -121,7 +121,7 @@ const AddProduct = () => {
       });
 
       toast.success('Product created');
-      navigate('/products');
+      navigate('/artisan/my-products');
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to create product';
       toast.error(msg);

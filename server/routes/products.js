@@ -326,7 +326,7 @@ router.get('/featured/list', async (req, res) => {
 });
 router.post('/:id/reviews', auth, async (req, res) => {
   try {
-    const { rating, comment } = req.body;
+    const { rating, comment, sentiment, sentimentScore } = req.body;
     const product = await Product.findById(req.params.id);
     
     if (!product) {
@@ -357,6 +357,8 @@ router.post('/:id/reviews', auth, async (req, res) => {
       user: req.userId,
       rating: Number(rating),
       comment,
+      sentiment: sentiment || 'neutral',
+      sentimentScore: sentimentScore || 0,
       createdAt: new Date()
     };
 
