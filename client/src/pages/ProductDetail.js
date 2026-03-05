@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import api from '../lib/api';
@@ -10,7 +10,7 @@ import AddReview from '../components/AddReview';
 import ProductViewer360 from '../components/ProductViewer360';
 import VRProductViewer from '../components/VRProductViewer';
 import ARProductViewer from '../components/ARProductViewer';
-import { generate360Images, detectDeviceCapabilities, optimizeForMobile } from '../utils/vrarUtils';
+import { generate360Images, detectDeviceCapabilities } from '../utils/vrarUtils';
 import { FaStar, FaFilter, FaRegStar, FaStarHalfAlt, FaTv, FaCamera, FaSync, FaHeart, FaRegHeart } from 'react-icons/fa';
 
 const ProductDetailContainer = styled.div`
@@ -46,7 +46,7 @@ const ProductDetailContent = styled.div`
   }
 `;
 
-const ProductGrid = styled.div`
+const _ProductGrid = styled.div`
   display: flex;
   gap: 4rem;
   background: white;
@@ -457,7 +457,7 @@ const ProductDetail = () => {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [aiLoading, setAiLoading] = useState(false);
+  const [, setAiLoading] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [filter, setFilter] = useState('all');
   const [activeViewer, setActiveViewer] = useState('360');
@@ -587,7 +587,7 @@ const ProductDetail = () => {
     }
   }, [id]);
 
-  const runDemandForecast = async () => {
+  const _runDemandForecast = async () => {
     try {
       await runAiTask('demand-forecast', { productId: id });
     } catch (e) {
@@ -595,7 +595,7 @@ const ProductDetail = () => {
     }
   };
 
-  const runQualityCheck = async () => {
+  const _runQualityCheck = async () => {
     try {
       const imageUrl = product?.images?.[0]?.url;
       await runAiTask('quality-check', { productId: id, imageUrl });
@@ -604,7 +604,7 @@ const ProductDetail = () => {
     }
   };
 
-  const runSentiment = async () => {
+  const _runSentiment = async () => {
     try {
       const text = prompt('Enter customer feedback text to analyze:');
       if (!text) return;

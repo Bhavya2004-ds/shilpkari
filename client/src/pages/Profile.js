@@ -463,7 +463,7 @@ const Profile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [ordersCount, setOrdersCount] = useState(0);
+  const [, setOrdersCount] = useState(0);
 
   useEffect(() => {
     const fetchOrdersCount = async () => {

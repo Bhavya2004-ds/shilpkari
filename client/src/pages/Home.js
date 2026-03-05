@@ -1,8 +1,6 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import styled from 'styled-components';
-import { motion } from 'framer-motion';
 
 // Components
 import Hero from '../components/Home/Hero';
@@ -18,7 +16,7 @@ const HomeContainer = styled.div`
 `;
 
 const Home = () => {
-  const { t } = useLanguage();
+  useLanguage();
 
   return (
     <HomeContainer>
