@@ -53,9 +53,8 @@ Shilpkari (शिल्पकारी) is a digital marketplace that connects s
 - **Cloudinary** - Image storage and processing
 
 ### AI & ML
-- **TensorFlow.js** - Machine learning
-- **Natural Language Processing** - Sentiment analysis
-- **Computer Vision** - Image quality assessment
+- **Natural** - NLP library for sentiment analysis
+- **Chart.js** - Data visualization for analytics
 
 ### Blockchain
 - **Web3.js** - Ethereum integration
@@ -94,8 +93,8 @@ shilpkari-artisan-marketplace/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/shilpkari-artisan-marketplace.git
-   cd shilpkari-artisan-marketplace
+   git clone https://github.com/Bhavya2004-ds/shilpkari.git
+   cd shilpkari
    ```
 
 2. **Install dependencies**
@@ -110,12 +109,8 @@ shilpkari-artisan-marketplace/
    ```
 
 3. **Environment Setup**
-   ```bash
-   # Copy environment variables
-   cp server/.env.example server/.env
    
-   # Edit server/.env with your configuration
-   ```
+   Create a `.env` file in the root directory with the required variables (see Configuration section below).
 
 4. **Start the development servers**
    ```bash
@@ -143,7 +138,7 @@ PORT=5000
 NODE_ENV=development
 
 # Database
-MONGODB_URI=mongodb://localhost:27017/shilpkari
+MONGODB_URI=your_mongodb_connection_string
 
 # JWT Secret
 JWT_SECRET=your_jwt_secret_key
@@ -152,14 +147,6 @@ JWT_SECRET=your_jwt_secret_key
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
-
-# Blockchain
-ETHEREUM_RPC_URL=http://localhost:7545
-SUPPLY_CHAIN_CONTRACT_ADDRESS=your_contract_address
-
-# AI Services
-OPENAI_API_KEY=your_openai_key
-TENSORFLOW_MODEL_URL=your_model_url
 ```
 
 ## 📱 Features in Detail
@@ -194,17 +181,13 @@ TENSORFLOW_MODEL_URL=your_model_url
 
 ### 6. Multilingual Support
 - **8 Languages**: English, Hindi, Tamil, Telugu, Bengali, Gujarati, Marathi, Punjabi
-- **RTL Support**: Right-to-left language support
-- **Localized Content**: Region-specific content and marketing
+- **Localized Content**: Region-specific content and translations
 
 ## 🎨 UI/UX Features
 
 - **Responsive Design**: Mobile-first responsive design
-- **Modern UI**: Clean, intuitive interface
-- **Accessibility**: WCAG 2.1 compliant
-- **Animations**: Smooth micro-interactions
-- **Dark Mode**: Optional dark theme
-- **Progressive Web App**: PWA capabilities
+- **Modern UI**: Clean, intuitive interface with earthy/amber theme
+- **Animations**: Smooth micro-interactions using Framer Motion
 
 ## 🔒 Security Features
 
@@ -224,25 +207,16 @@ TENSORFLOW_MODEL_URL=your_model_url
 
 ## 🚀 Deployment
 
-### Production Build
-```bash
-# Build the client
-cd client
-npm run build
+### Frontend (Netlify)
+- **Base directory**: `client`
+- **Build command**: `npm run build`
+- **Publish directory**: `client/build`
+- Add a `client/_redirects` file with `/* /index.html 200` for SPA routing
 
-# Start production server
-cd ..
-npm start
-```
-
-### Docker Deployment
-```bash
-# Build Docker image
-docker build -t shilpkari-app .
-
-# Run container
-docker run -p 3000:3000 -p 5000:5000 shilpkari-app
-```
+### Backend (Render / Railway)
+- **Build command**: `npm install`
+- **Start command**: `node server/index.js`
+- Set all environment variables from `.env` in the hosting dashboard
 
 ## 🤝 Contributing
 
