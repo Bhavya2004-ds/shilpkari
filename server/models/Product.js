@@ -19,7 +19,7 @@ const productSchema = new mongoose.Schema({
     type: String,
     required: true,
     enum: [
-      'pottery', 'textiles', 'jewelry', 'woodwork', 'metalwork', 
+      'pottery', 'textiles', 'jewelry', 'woodwork', 'metalwork',
       'paintings', 'sculptures', 'basketry', 'leatherwork', 'other'
     ]
   },
@@ -96,6 +96,18 @@ const productSchema = new mongoose.Schema({
     seasonality: [Number], // Monthly demand pattern
     lastUpdated: Date
   },
+  // 3D Model (TripoSR)
+  model3d: {
+    glbUrl: String,
+    status: {
+      type: String,
+      enum: ['none', 'processing', 'completed', 'failed'],
+      default: 'none'
+    },
+    taskId: String,
+    generatedAt: Date,
+    error: String
+  },
   // Reviews
   reviews: [{
     user: {
@@ -149,7 +161,7 @@ const productSchema = new mongoose.Schema({
 });
 
 // Create slug from name
-productSchema.pre('save', function(next) {
+productSchema.pre('save', function (next) {
   if (this.isModified('name')) {
     this.slug = this.name
       .toLowerCase()

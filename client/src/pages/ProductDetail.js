@@ -7,11 +7,8 @@ import { useCart } from '../contexts/CartContext';
 import { useWishlist } from '../contexts/WishlistContext';
 import ProductReview from '../components/ProductReview';
 import AddReview from '../components/AddReview';
-import ProductViewer360 from '../components/ProductViewer360';
-import VRProductViewer from '../components/VRProductViewer';
-import ARProductViewer from '../components/ARProductViewer';
-import { generate360Images, detectDeviceCapabilities } from '../utils/vrarUtils';
-import { FaStar, FaFilter, FaRegStar, FaStarHalfAlt, FaTv, FaCamera, FaSync, FaHeart, FaRegHeart } from 'react-icons/fa';
+import ThreeDModelViewer from '../components/ThreeDModelViewer';
+import { FaStar, FaFilter, FaRegStar, FaStarHalfAlt, FaHeart, FaRegHeart, FaCube } from 'react-icons/fa';
 
 const ProductDetailContainer = styled.div`
   min-height: 100vh;
@@ -460,33 +457,8 @@ const ProductDetail = () => {
   const [, setAiLoading] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [filter, setFilter] = useState('all');
-  const [activeViewer, setActiveViewer] = useState('360');
-  const [deviceCapabilities, setDeviceCapabilities] = useState({});
-  const [images360, setImages360] = useState([]);
   const { addItem } = useCart();
   const { isInWishlist, toggleItem } = useWishlist();
-
-  // Detect device capabilities on mount
-  useEffect(() => {
-    const capabilities = detectDeviceCapabilities();
-    setDeviceCapabilities(capabilities);
-
-    // Set default viewer based on device capabilities
-    if (!capabilities.vr && !capabilities.ar) {
-      setActiveViewer('360');
-    } else if (capabilities.vr) {
-      setActiveViewer('vr');
-    }
-  }, []);
-
-  // Generate 360 images when product loads
-  useEffect(() => {
-    if (product && product.images && product.images.length > 0) {
-      const baseImage = product.images[0]?.url || product.images[0];
-      const generated360 = generate360Images(baseImage);
-      setImages360(generated360);
-    }
-  }, [product]);
 
   const runAiTask = async (endpoint, data) => {
     setAiLoading(true);
@@ -652,17 +624,32 @@ const ProductDetail = () => {
               let imageUrl = '';
 
               if (Array.isArray(product.images) && product.images.length > 0) {
-                // If images is an array of URLs (strings)
-                imageUrl = product.images[0];
+                const firstImg = product.images[0];
+                if (typeof firstImg === 'string') {
+                  imageUrl = firstImg;
+                } else if (firstImg && typeof firstImg === 'object') {
+                  if (firstImg.url && typeof firstImg.url === 'string') {
+                    // Standard subdocument: {url: "https://...", ...}
+                    imageUrl = firstImg.url;
+                  } else {
+                    // Mongoose character-indexed serialization: {"0":"h","1":"t",...}
+                    const numericKeys = Object.keys(firstImg).filter(k => /^\d+$/.test(k));
+                    if (numericKeys.length > 0) {
+                      numericKeys.sort((a, b) => Number(a) - Number(b));
+                      imageUrl = numericKeys.map(k => firstImg[k]).join('');
+                    }
+                  }
+                }
               } else if (product.images && typeof product.images === 'string') {
-                // If images is a direct string URL
                 imageUrl = product.images;
               } else if (product.images && product.images.url) {
-                // If images is an object with a url property
                 imageUrl = product.images.url;
               }
 
-              console.log('Using image URL:', imageUrl);
+              // Ensure it's a string (not [object Object])
+              if (typeof imageUrl !== 'string' || imageUrl === '[object Object]') {
+                imageUrl = '';
+              }
 
               return (
                 <div style={{
@@ -682,7 +669,8 @@ const ProductDetail = () => {
                       alt={product.name || 'Product image'}
                       onError={(e) => {
                         e.target.onerror = null;
-                        e.target.src = 'https://via.placeholder.com/500x500?text=No+Image+Available';
+                        e.target.style.display = 'none';
+                        e.target.parentElement.innerHTML = '<div style="text-align:center;color:#64748b"><div style="font-size:3rem;margin-bottom:1rem">📷</div><p>Image could not be loaded</p></div>';
                       }}
                       style={{
                         maxWidth: '100%',
@@ -978,57 +966,22 @@ const ProductDetail = () => {
           )}
         </ReviewSection>
 
-        {/* VR/AR Viewer Section */}
+        {/* 3D Model Viewer Section */}
         <ViewerSection>
           <ViewerHeader>
             <ViewerTitle>Immersive Experience</ViewerTitle>
-            <ViewerTabs>
-              <ViewerTab
-                active={activeViewer === '360'}
-                onClick={() => setActiveViewer('360')}
-              >
-                <FaSync /> 360° View
-              </ViewerTab>
-              {deviceCapabilities.vr && (
-                <ViewerTab
-                  active={activeViewer === 'vr'}
-                  onClick={() => setActiveViewer('vr')}
-                >
-                  <FaTv /> VR
-                </ViewerTab>
-              )}
-              {deviceCapabilities.ar && (
-                <ViewerTab
-                  active={activeViewer === 'ar'}
-                  onClick={() => setActiveViewer('ar')}
-                >
-                  <FaCamera /> AR
-                </ViewerTab>
-              )}
-            </ViewerTabs>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f3f4f6', padding: '6px 16px', borderRadius: '8px' }}>
+              <FaCube style={{ color: '#d97706' }} />
+              <span style={{ fontWeight: 600, color: '#1f2937', fontSize: '0.95rem' }}>3D Model</span>
+            </div>
           </ViewerHeader>
 
           <ViewerContent>
-            {activeViewer === '360' && (
-              <ProductViewer360
-                images={images360}
-                productName={product.name}
-              />
-            )}
-            {activeViewer === 'vr' && (
-              <VRProductViewer
-                product={product}
-                vrModelUrl={product.images?.[0]?.vr360Url}
-                images={images360}
-              />
-            )}
-            {activeViewer === 'ar' && (
-              <ARProductViewer
-                product={product}
-                arModelUrl={product.images?.[0]?.arModelUrl}
-                images={images360}
-              />
-            )}
+            <ThreeDModelViewer
+              productId={product._id}
+              model3dData={product.model3d}
+              productName={product.name}
+            />
           </ViewerContent>
         </ViewerSection>
       </ProductDetailContainer>

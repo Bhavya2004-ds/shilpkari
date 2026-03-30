@@ -326,8 +326,13 @@ const Logistics = () => {
         if (!product) return null;
         if (product.images && product.images.length > 0) {
             const img = product.images[0];
-            if (typeof img === 'object' && img.url) return img.url;
+            if (typeof img === 'object' && img !== null && img.url) return img.url;
             if (typeof img === 'string') return img;
+            // Handle character-indexed objects from Mongoose string casting
+            if (typeof img === 'object' && img !== null && '0' in img) {
+                const keys = Object.keys(img).filter(k => /^\d+$/.test(k)).sort((a, b) => Number(a) - Number(b));
+                if (keys.length > 0) return keys.map(k => img[k]).join('');
+            }
         }
         return null;
     };

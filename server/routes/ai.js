@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const { auth } = require('../middleware/auth');
@@ -304,6 +305,238 @@ router.get('/insights/:artisanId', auth, async (req, res) => {
   } catch (error) {
     console.error('Get insights error:', error);
     res.status(500).json({ message: 'Server error during insights generation' });
+  }
+});
+
+// ============================================
+// 3D Model Generation (TripoSR via Tripo3D API)
+// ============================================
+
+const TRIPO_API_BASE = 'https://api.tripo3d.ai/v2/openapi';
+
+// Helper: Poll Tripo task until completion
+const pollTripoTask = async (taskId, apiKey, maxAttempts = 36, interval = 5000) => {
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(resolve => setTimeout(resolve, interval));
+
+    const response = await axios.get(`${TRIPO_API_BASE}/task/${taskId}`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` }
+    });
+
+    const { data } = response.data;
+    console.log(`[TripoSR] Poll ${i + 1}/${maxAttempts} - Task ${taskId} status: ${data.status}`);
+
+    if (data.status === 'success') {
+      return { success: true, output: data.output };
+    }
+
+    if (['failed', 'banned', 'expired', 'cancelled'].includes(data.status)) {
+      return { success: false, error: `Task ${data.status}` };
+    }
+    // queued or running — keep polling
+  }
+
+  return { success: false, error: 'Timed out waiting for 3D model generation' };
+};
+
+// POST /api/ai/generate-3d-model
+router.post('/generate-3d-model', async (req, res) => {
+  try {
+    const { productId } = req.body;
+    const apiKey = process.env.TRIPO_API_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({ message: 'TRIPO_API_KEY not configured on the server' });
+    }
+
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    // Check if already processing
+    if (product.model3d?.status === 'processing') {
+      return res.status(400).json({
+        message: 'A 3D model is already being generated for this product',
+        taskId: product.model3d.taskId
+      });
+    }
+
+    // Get the product's primary image URL
+    // Images may be stored as plain strings in MongoDB, but Mongoose casts them through
+    // the subdocument schema {url, alt, isPrimary}, creating character-indexed objects
+    // like {'0':'h','1':'t','2':'t','3':'p',...}. We need to reconstruct the URL.
+    let imageUrl = '';
+    if (Array.isArray(product.images) && product.images.length > 0) {
+      const firstImage = product.images[0];
+      if (typeof firstImage === 'string') {
+        imageUrl = firstImage;
+      } else if (firstImage && typeof firstImage === 'object') {
+        const imgObj = firstImage.toObject ? firstImage.toObject() : firstImage;
+
+        if (imgObj.url && typeof imgObj.url === 'string') {
+          // Standard case: image is {url: "https://...", ...}
+          imageUrl = imgObj.url;
+        } else {
+          // Mongoose character-indexed case: {'0':'h','1':'t',...}
+          const numericKeys = Object.keys(imgObj).filter(k => /^\d+$/.test(k));
+          if (numericKeys.length > 0) {
+            numericKeys.sort((a, b) => Number(a) - Number(b));
+            imageUrl = numericKeys.map(k => imgObj[k]).join('');
+          }
+        }
+      }
+    }
+
+    // Ensure it's a plain string
+    imageUrl = String(imageUrl).trim();
+
+    if (!imageUrl) {
+      return res.status(400).json({ message: 'Product has no image to generate a 3D model from' });
+    }
+
+    console.log(`[TripoSR] Starting 3D model generation for product ${productId}, image: ${imageUrl}`);
+
+    // Step 1: Download the product image
+    console.log('[TripoSR] Downloading product image...');
+    const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+    const imageBuffer = Buffer.from(imageResponse.data);
+
+    // Determine file extension
+    const ext = imageUrl.match(/\.(jpg|jpeg|png|webp)/i)?.[1]?.toLowerCase() || 'jpg';
+    const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+
+    // Step 2: Upload image to Tripo's upload endpoint to get file_token
+    console.log('[TripoSR] Uploading image to Tripo...');
+    const FormData = require('form-data');
+    const formData = new FormData();
+    formData.append('file', imageBuffer, { filename: `product.${ext}`, contentType: mimeType });
+
+    const uploadResponse = await axios.post(`${TRIPO_API_BASE}/upload`, formData, {
+      headers: {
+        ...formData.getHeaders(),
+        'Authorization': `Bearer ${apiKey}`
+      }
+    });
+
+    if (uploadResponse.data.code !== 0) {
+      throw new Error(`Tripo upload error: ${JSON.stringify(uploadResponse.data)}`);
+    }
+
+    const fileToken = uploadResponse.data.data.image_token;
+    console.log(`[TripoSR] Image uploaded, token: ${fileToken}`);
+
+    // Step 3: Create the Tripo task with file_token
+    const createResponse = await axios.post(`${TRIPO_API_BASE}/task`, {
+      type: 'image_to_model',
+      model_version: 'v2.5-20250123',
+      file: {
+        type: ext === 'png' ? 'png' : ext === 'webp' ? 'webp' : 'jpg',
+        file_token: fileToken
+      }
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      }
+    });
+
+    if (createResponse.data.code !== 0) {
+      throw new Error(`Tripo API error: ${JSON.stringify(createResponse.data)}`);
+    }
+
+    const taskId = createResponse.data.data.task_id;
+    console.log(`[TripoSR] Task created: ${taskId}`);
+
+    // Update product status to processing
+    product.model3d = {
+      status: 'processing',
+      taskId: taskId,
+      glbUrl: null,
+      generatedAt: null,
+      error: null
+    };
+    await product.save();
+
+    // Return immediately — client will poll for status
+    res.json({
+      message: '3D model generation started',
+      taskId: taskId,
+      status: 'processing'
+    });
+
+    // Step 2: Poll in the background (non-blocking)
+    pollTripoTask(taskId, apiKey)
+      .then(async (result) => {
+        const updatedProduct = await Product.findById(productId);
+        if (!updatedProduct) return;
+
+        if (result.success) {
+          const glbUrl = result.output.model || result.output.pbr_model;
+          console.log(`[TripoSR] Model ready for product ${productId}: ${glbUrl}`);
+
+          updatedProduct.model3d = {
+            status: 'completed',
+            taskId: taskId,
+            glbUrl: glbUrl,
+            generatedAt: new Date(),
+            error: null
+          };
+        } else {
+          console.error(`[TripoSR] Failed for product ${productId}: ${result.error}`);
+          updatedProduct.model3d = {
+            status: 'failed',
+            taskId: taskId,
+            glbUrl: null,
+            generatedAt: null,
+            error: result.error
+          };
+        }
+
+        await updatedProduct.save();
+      })
+      .catch(async (err) => {
+        console.error(`[TripoSR] Polling error for product ${productId}:`, err.message);
+        try {
+          const updatedProduct = await Product.findById(productId);
+          if (updatedProduct) {
+            updatedProduct.model3d = {
+              status: 'failed',
+              taskId: taskId,
+              glbUrl: null,
+              generatedAt: null,
+              error: err.message
+            };
+            await updatedProduct.save();
+          }
+        } catch (saveErr) {
+          console.error('[TripoSR] Failed to save error status:', saveErr.message);
+        }
+      });
+
+  } catch (error) {
+    console.error('Generate 3D model error:', error);
+    res.status(500).json({ message: 'Failed to start 3D model generation', error: error.message });
+  }
+});
+
+// GET /api/ai/3d-model-status/:productId
+router.get('/3d-model-status/:productId', async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.productId).select('model3d');
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    res.json({
+      status: product.model3d?.status || 'none',
+      glbUrl: product.model3d?.glbUrl || null,
+      error: product.model3d?.error || null,
+      generatedAt: product.model3d?.generatedAt || null
+    });
+  } catch (error) {
+    console.error('3D model status error:', error);
+    res.status(500).json({ message: 'Failed to get 3D model status' });
   }
 });
 

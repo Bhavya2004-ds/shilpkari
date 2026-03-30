@@ -156,8 +156,19 @@ router.put('/:id/status', auth, async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    // Check permissions
-    if (order.buyer.toString() !== req.userId && req.userRole !== 'admin') {
+    // Check permissions - allow buyer, admin, OR artisan who owns products in this order
+    const isBuyer = order.buyer.toString() === req.userId;
+    const isAdmin = req.userRole === 'admin';
+    let isArtisan = false;
+
+    if (!isBuyer && !isAdmin) {
+      // Check if user is the artisan for any product in this order
+      const productIds = order.items.map(item => item.product);
+      const products = await Product.find({ _id: { $in: productIds } });
+      isArtisan = products.some(p => p.artisan && p.artisan.toString() === req.userId);
+    }
+
+    if (!isBuyer && !isAdmin && !isArtisan) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
