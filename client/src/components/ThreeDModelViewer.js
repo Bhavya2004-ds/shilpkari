@@ -858,7 +858,7 @@ const ThreeDModelViewer = ({ productId, model3dData, productName }) => {
                             alt={`A 3D model of ${productName}`}
                             shadow-intensity="1"
                             exposure="1.2"
-                            style={{ width: '100%', height: '100%', background: '#fafafa' }}
+                            style={{ width: '100%', height: '100%', background: 'transparent' }}
                         >
                             <ARControls slot="ar-button">
                                 <ARButton>
