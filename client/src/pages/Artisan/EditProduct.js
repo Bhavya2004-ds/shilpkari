@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  FiSave, FiTrash2, FiArrowLeft, FiImage, FiX, FiAlertCircle, FiPackage
+  FiSave, FiTrash2, FiArrowLeft, FiImage, FiX, FiAlertCircle, FiPackage, FiUploadCloud, FiBox
 } from 'react-icons/fi';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -160,6 +160,83 @@ const CheckboxRow = styled.div`
     accent-color: #d97706;
     cursor: pointer;
   }
+`;
+
+const UploadZone = styled.div`
+  border: 2px dashed ${p => p.$hasFiles ? '#d97706' : '#e5e7eb'};
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: ${p => p.$hasFiles ? 'rgba(217,119,6,0.03)' : '#fafafa'};
+
+  &:hover {
+    border-color: #d97706;
+    background: rgba(217,119,6,0.03);
+  }
+
+  input { display: none; }
+
+  .icon {
+    color: ${p => p.$hasFiles ? '#d97706' : '#9ca3af'};
+    margin-bottom: 0.5rem;
+  }
+
+  .label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.95rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .hint {
+    color: #9ca3af;
+    font-size: 0.8rem;
+  }
+`;
+
+const PreviewGrid = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+`;
+
+const PreviewThumb = styled.div`
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid #e5e7eb;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .remove-btn {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(220,38,38,0.9);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  &:hover .remove-btn { opacity: 1; }
 `;
 
 const ImagesSection = styled.div`
@@ -377,6 +454,10 @@ const EditProduct = () => {
     isFeatured: false,
   });
   const [existingImages, setExistingImages] = useState([]);
+  const [newImages, setNewImages] = useState([]);
+  const [newPreviews, setNewPreviews] = useState([]);
+  const [modelFile, setModelFile] = useState(null);
+  const [existingModel, setExistingModel] = useState(null);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -401,6 +482,7 @@ const EditProduct = () => {
           return null;
         }).filter(Boolean);
         setExistingImages(imgs);
+        setExistingModel(product.model3d || null);
       } catch (err) {
         toast.error('Failed to load product');
         navigate('/artisan/my-products');
@@ -420,6 +502,37 @@ const EditProduct = () => {
     setExistingImages(prev => prev.filter((_, i) => i !== index));
   };
 
+  const onImagesSelect = (e) => {
+    const selected = Array.from(e.target.files || []);
+    if (selected.length === 0) return;
+
+    setNewImages(prev => [...prev, ...selected]);
+
+    selected.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setNewPreviews(prev => [...prev, { name: file.name, url: ev.target.result }]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeNewImage = (index) => {
+    setNewImages(prev => prev.filter((_, i) => i !== index));
+    setNewPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const onModelSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.name.toLowerCase().endsWith('.glb')) {
+        toast.error('Please upload a .glb file');
+        return;
+      }
+      setModelFile(file);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name || !form.price || !form.category) {
@@ -429,18 +542,30 @@ const EditProduct = () => {
 
     try {
       setSaving(true);
-      const updateData = {
-        name: form.name,
-        price: Number(form.price),
-        category: form.category,
-        description: form.description,
-        tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-        isActive: form.isActive,
-        isFeatured: form.isFeatured,
-        images: existingImages,
-      };
+      const fd = new FormData();
+      fd.append('name', form.name);
+      fd.append('price', Number(form.price));
+      fd.append('category', form.category);
+      fd.append('description', form.description || '');
+      
+      const tags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+      tags.forEach(tag => fd.append('tags[]', tag));
+      
+      fd.append('isActive', form.isActive);
+      fd.append('isFeatured', form.isFeatured);
+      
+      // Existing images (as JSON string since FormData doesn't support nested objects easily)
+      fd.append('images', JSON.stringify(existingImages));
+      
+      // New Image files
+      newImages.forEach(file => fd.append('images', file));
+      
+      // 3D Model file
+      if (modelFile) fd.append('model3d', modelFile);
 
-      await api.put(`/products/${id}`, updateData);
+      await api.put(`/products/${id}`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       toast.success('Product updated successfully!');
       navigate('/artisan/my-products');
     } catch (err) {
@@ -557,8 +682,36 @@ const EditProduct = () => {
 
             <Full>
               <FieldGroup>
-                <label><FiImage style={{ verticalAlign: 'middle', marginRight: 6 }} /> Current Images</label>
+                <label><FiBox style={{ verticalAlign: 'middle', marginRight: 6 }} /> 3D Model (.glb)</label>
+                {existingModel && existingModel.glbUrl && !modelFile && (
+                  <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#fefce8', borderRadius: '8px', border: '1px solid #fef3c7', fontSize: '0.9rem', color: '#854d0e', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FiBox /> Current model exists. Upload new to replace.
+                  </div>
+                )}
+                <UploadZone
+                  $hasFiles={!!modelFile}
+                  onClick={() => document.getElementById('model-input').click()}
+                >
+                  <input
+                    id="model-input"
+                    type="file"
+                    accept=".glb"
+                    onChange={onModelSelect}
+                  />
+                  <div className="icon"><FiBox size={32} /></div>
+                  <div className="label">
+                    {modelFile ? modelFile.name : (existingModel ? 'Replace existing 3D model' : 'Upload 3D model')}
+                  </div>
+                  <div className="hint">GLB format only. Max 25MB.</div>
+                </UploadZone>
+              </FieldGroup>
+            </Full>
+
+            <Full>
+              <FieldGroup>
+                <label><FiImage style={{ verticalAlign: 'middle', marginRight: 6 }} /> Product Images</label>
                 <ImagesSection>
+                  <label style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.5rem', display: 'block' }}>Current Images</label>
                   {existingImages.length > 0 ? (
                     <ImagesGrid>
                       {existingImages.map((img, i) => (
@@ -576,7 +729,45 @@ const EditProduct = () => {
                       ))}
                     </ImagesGrid>
                   ) : (
-                    <p style={{ color: '#9ca3af', fontSize: '0.9rem' }}>No images</p>
+                    <p style={{ color: '#9ca3af', fontSize: '0.9rem', marginBottom: '1rem' }}>No images</p>
+                  )}
+                  
+                  <label style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.5rem', display: 'block' }}>Upload New Images</label>
+                  <UploadZone
+                    $hasFiles={newImages.length > 0}
+                    onClick={() => document.getElementById('file-input').click()}
+                  >
+                    <input
+                      id="file-input"
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={onImagesSelect}
+                    />
+                    <div className="icon"><FiUploadCloud size={32} /></div>
+                    <div className="label">
+                      {newImages.length > 0
+                        ? `${newImages.length} new image${newImages.length > 1 ? 's' : ''} selected`
+                        : 'Click to add more images'}
+                    </div>
+                  </UploadZone>
+
+                  {newPreviews.length > 0 && (
+                    <PreviewGrid>
+                      {newPreviews.map((preview, i) => (
+                        <PreviewThumb key={i}>
+                          <img src={preview.url} alt={preview.name} />
+                          <button
+                            type="button"
+                            className="remove-btn"
+                            onClick={() => removeNewImage(i)}
+                            title="Remove image"
+                          >
+                            <FiX />
+                          </button>
+                        </PreviewThumb>
+                      ))}
+                    </PreviewGrid>
                   )}
                 </ImagesSection>
               </FieldGroup>

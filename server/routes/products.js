@@ -25,14 +25,18 @@ const isCloudinaryConfigured = () => {
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
-const upload = multer({ 
+const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB limit (3D models can be larger)
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
+    // Check if image or .glb model
+    if (file.mimetype.startsWith('image/') || 
+        file.originalname.toLowerCase().endsWith('.glb') || 
+        file.mimetype === 'model/gltf-binary' ||
+        file.mimetype === 'application/octet-stream') { // Sometimes .glb is detected as octet-stream
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed'), false);
+      cb(new Error('Only images and 3D models (.glb) are allowed'), false);
     }
   }
 });
@@ -87,8 +91,33 @@ router.get('/', async (req, res) => {
 
     const total = await Product.countDocuments(query);
 
+    // Normalize images to always be {url, alt} format
+    // Mongoose casts plain strings into subdocument schemas as character-indexed objects
+    // e.g. {"0":"h","1":"t","2":"t","3":"p",...} — we need to reconstruct the URL
+    const normalizedProducts = products.map(p => {
+      const product = p.toObject ? p.toObject() : p;
+      if (product.images && product.images.length > 0) {
+        product.images = product.images.map(img => {
+          if (typeof img === 'string') {
+            return { url: img, alt: product.name || '', isPrimary: false };
+          }
+          // Handle character-indexed objects from Mongoose string casting
+          if (typeof img === 'object' && img !== null && !img.url && '0' in img) {
+            // Reconstruct URL from character-indexed keys
+            const keys = Object.keys(img).filter(k => /^\d+$/.test(k)).sort((a, b) => Number(a) - Number(b));
+            if (keys.length > 0) {
+              const reconstructedUrl = keys.map(k => img[k]).join('');
+              return { url: reconstructedUrl, alt: product.name || '', isPrimary: img.isPrimary || false };
+            }
+          }
+          return img;
+        });
+      }
+      return product;
+    });
+
     res.json({
-      products,
+      products: normalizedProducts,
       totalPages: Math.ceil(total / limit),
       currentPage: page,
       total
@@ -122,7 +151,18 @@ router.get('/:id', async (req, res) => {
     }
 
     // Ensure all required fields have default values
-    product.images = product.images || [];
+    product.images = (product.images || []).map(img => {
+      if (typeof img === 'string') {
+        return { url: img, alt: product.name || '', isPrimary: false };
+      }
+      if (typeof img === 'object' && img !== null && !img.url && '0' in img) {
+        const keys = Object.keys(img).filter(k => /^\d+$/.test(k)).sort((a, b) => Number(a) - Number(b));
+        if (keys.length > 0) {
+          return { url: keys.map(k => img[k]).join(''), alt: product.name || '', isPrimary: img.isPrimary || false };
+        }
+      }
+      return img;
+    });
     product.reviews = product.reviews || [];
 
     // Handle dimensions safely
@@ -159,7 +199,7 @@ router.get('/:id', async (req, res) => {
       { _id: req.params.id },
       { $inc: { views: 1 } }
     );
-    
+
     res.json(product);
   } catch (error) {
     console.error('Get product error:', error);
@@ -168,19 +208,24 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create product (Artisan only)
-router.post('/', auth, artisanAuth, upload.array('images', 10), async (req, res) => {
+router.post('/', auth, artisanAuth, upload.fields([
+  { name: 'images', maxCount: 10 },
+  { name: 'model3d', maxCount: 1 }
+]), async (req, res) => {
   try {
     const productData = req.body;
     productData.artisan = req.userId;
 
-    // Upload images to Cloudinary
+    // Handle Image Uploads
     const images = [];
-    if (req.files && req.files.length > 0) {
+    if (req.files && req.files.images && req.files.images.length > 0) {
       if (!isCloudinaryConfigured()) {
-        return res.status(400).json({ message: 'Image upload is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET on the server.' });
+        return res.status(400).json({ message: 'Cloudinary is not configured. Please check your .env file.' });
       }
-      for (let i = 0; i < req.files.length; i++) {
-        const file = req.files[i];
+      
+      const imageFiles = req.files.images;
+      for (let i = 0; i < imageFiles.length; i++) {
+        const file = imageFiles[i];
         const result = await cloudinary.uploader.upload(
           `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
           {
@@ -197,8 +242,28 @@ router.post('/', auth, artisanAuth, upload.array('images', 10), async (req, res)
         });
       }
     }
-
     productData.images = images;
+
+    // Handle 3D Model Upload
+    if (req.files && req.files.model3d && req.files.model3d.length > 0) {
+      const glbFile = req.files.model3d[0];
+      console.log(`[3D Upload] Processing manually uploaded GLB: ${glbFile.originalname}`);
+
+      const result = await cloudinary.uploader.upload(
+        `data:${glbFile.mimetype || 'model/gltf-binary'};base64,${glbFile.buffer.toString('base64')}`,
+        {
+          folder: 'shilpkari/models',
+          resource_type: 'raw', // Critical for .glb files
+          public_id: `${productData.name.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}`
+        }
+      );
+
+      productData.model3d = {
+        glbUrl: result.secure_url,
+        status: 'completed',
+        generatedAt: new Date()
+      };
+    }
 
     const product = new Product(productData);
     await product.save();
@@ -209,12 +274,15 @@ router.post('/', auth, artisanAuth, upload.array('images', 10), async (req, res)
     });
   } catch (error) {
     console.error('Create product error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 // Update product (Artisan only)
-router.put('/:id', auth, artisanAuth, async (req, res) => {
+router.put('/:id', auth, artisanAuth, upload.fields([
+  { name: 'images', maxCount: 10 },
+  { name: 'model3d', maxCount: 1 }
+]), async (req, res) => {
   try {
     const product = await Product.findOne({
       _id: req.params.id,
@@ -226,8 +294,74 @@ router.put('/:id', auth, artisanAuth, async (req, res) => {
     }
 
     const updates = req.body;
+
+    // Handle Image Uploads & Removals
+    let updatedImages = [];
+    
+    // 1. Initial base: Try to parse existing images from body (sent by EditProduct.js)
+    if (updates.images) {
+      try {
+        updatedImages = typeof updates.images === 'string' ? JSON.parse(updates.images) : updates.images;
+      } catch (e) {
+        console.error('Error parsing images JSON:', e);
+        updatedImages = product.images || [];
+      }
+    } else {
+      updatedImages = product.images || [];
+    }
+
+    // 2. Handle New Image Uploads
+    if (req.files && req.files.images && req.files.images.length > 0) {
+      const imageFiles = req.files.images;
+      
+      for (let i = 0; i < imageFiles.length; i++) {
+        const file = imageFiles[i];
+        const result = await cloudinary.uploader.upload(
+          `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
+          {
+            folder: 'shilpkari/products',
+            transformation: [{ width: 800, height: 600, crop: 'fill', quality: 'auto' }]
+          }
+        );
+        updatedImages.push({
+          url: result.secure_url,
+          alt: updates.name || product.name,
+          isPrimary: updatedImages.length === 0
+        });
+      }
+    }
+    product.images = updatedImages;
+
+    // Handle 3D Model Upload
+    if (req.files && req.files.model3d && req.files.model3d.length > 0) {
+      const glbFile = req.files.model3d[0];
+      const result = await cloudinary.uploader.upload(
+        `data:${glbFile.mimetype || 'model/gltf-binary'};base64,${glbFile.buffer.toString('base64')}`,
+        {
+          folder: 'shilpkari/models',
+          resource_type: 'raw',
+          public_id: `${(updates.name || product.name).replace(/\s+/g, '-').toLowerCase()}-${Date.now()}`
+        }
+      );
+
+      product.model3d = {
+        glbUrl: result.secure_url,
+        status: 'completed',
+        generatedAt: new Date()
+      };
+    }
+
+    // Handle Tags (might be sent as tags[] or string)
+    if (updates['tags[]']) {
+      product.tags = Array.isArray(updates['tags[]']) ? updates['tags[]'] : [updates['tags[]']];
+    } else if (updates.tags) {
+      product.tags = Array.isArray(updates.tags) ? updates.tags : updates.tags.split(',').map(t => t.trim()).filter(Boolean);
+    }
+
+    // Handle other fields
+    const skipFields = ['images', 'model3d', 'tags', 'tags[]'];
     Object.keys(updates).forEach(key => {
-      if (updates[key] !== undefined) {
+      if (updates[key] !== undefined && !skipFields.includes(key)) {
         product[key] = updates[key];
       }
     });
@@ -239,7 +373,7 @@ router.put('/:id', auth, artisanAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('Update product error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
@@ -267,19 +401,19 @@ router.delete('/:id', auth, artisanAuth, async (req, res) => {
 router.get('/artisan/:artisanId', async (req, res) => {
   try {
     const { page = 1, limit = 12 } = req.query;
-    
-    const products = await Product.find({ 
+
+    const products = await Product.find({
       artisan: req.params.artisanId,
-      isActive: true 
+      isActive: true
     })
       .populate('artisan', 'name artisanProfile.businessName')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
 
-    const total = await Product.countDocuments({ 
+    const total = await Product.countDocuments({
       artisan: req.params.artisanId,
-      isActive: true 
+      isActive: true
     });
 
     res.json({
@@ -309,10 +443,10 @@ router.get('/categories/list', async (req, res) => {
 router.get('/featured/list', async (req, res) => {
   try {
     const { limit = 8 } = req.query;
-    
-    const products = await Product.find({ 
+
+    const products = await Product.find({
       isFeatured: true,
-      isActive: true 
+      isActive: true
     })
       .populate('artisan', 'name artisanProfile.businessName profileImage')
       .sort({ createdAt: -1 })
@@ -328,15 +462,15 @@ router.post('/:id/reviews', auth, async (req, res) => {
   try {
     const { rating, comment, sentiment, sentimentScore } = req.body;
     const product = await Product.findById(req.params.id);
-    
+
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
     // Check if the user is the artisan who created the product
     if (product.artisan.toString() === req.userId) {
-      return res.status(403).json({ 
-        message: 'Artisans cannot review their own products' 
+      return res.status(403).json({
+        message: 'Artisans cannot review their own products'
       });
     }
 
@@ -348,8 +482,8 @@ router.post('/:id/reviews', auth, async (req, res) => {
 
     // Check if user is a buyer (not an artisan)
     if (user.role === 'artisan') {
-      return res.status(403).json({ 
-        message: 'Only buyers can submit reviews' 
+      return res.status(403).json({
+        message: 'Only buyers can submit reviews'
       });
     }
 
@@ -363,23 +497,23 @@ router.post('/:id/reviews', auth, async (req, res) => {
     };
 
     product.reviews.push(review);
-    
+
     // Update the product's average rating
     const totalReviews = product.reviews.length;
     const totalRating = product.reviews.reduce((sum, r) => sum + r.rating, 0);
     const averageRating = totalRating / totalReviews;
-    
+
     product.rating = {
       average: parseFloat(averageRating.toFixed(1)),
       count: totalReviews
     };
-    
+
     await product.save();
 
     // Populate user details for the response
     await product.populate('reviews.user', 'name profileImage');
     const newReview = product.reviews[product.reviews.length - 1];
-    
+
     res.status(201).json(newReview);
   } catch (error) {
     console.error('Error adding review:', error);
@@ -415,7 +549,7 @@ router.get('/mine', auth, async (req, res) => {
     const possibleIds = [uid];
     if (mongoose.Types.ObjectId.isValid(uid)) possibleIds.push(mongoose.Types.ObjectId(uid));
 
-    const ownerFields = ['owner','user','artisan','seller'];
+    const ownerFields = ['owner', 'user', 'artisan', 'seller'];
     const orClauses = ownerFields.map(f => ({ [f]: { $in: possibleIds } }));
 
     const products = await Product.find({ $or: orClauses })
