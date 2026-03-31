@@ -35,6 +35,16 @@ const ViewerContainer = styled.div`
     0 10px 40px rgba(217, 119, 6, 0.15),
     0 0 0 1px rgba(217, 119, 6, 0.1),
     inset 0 2px 0 rgba(255, 255, 255, 0.8);
+  
+  @media (max-width: 768px) {
+    height: 380px;
+    border-radius: 12px;
+  }
+  
+  @media (max-width: 480px) {
+    height: 300px;
+    border-radius: 10px;
+  }
 `;
 
 const CanvasWrapper = styled.div`
@@ -63,11 +73,23 @@ const Controls = styled.div`
     0 4px 20px rgba(0, 0, 0, 0.1),
     0 0 0 1px rgba(217, 119, 6, 0.2);
   z-index: 10;
+  
+  @media (max-width: 480px) {
+    bottom: 12px;
+    gap: 4px;
+    padding: 6px 10px;
+  }
 `;
 
 const ControlButton = styled.button`
   width: 40px;
   height: 40px;
+  
+  @media (max-width: 480px) {
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+  }
   border: 1px solid ${props => props.$active ? '#d97706' : '#e5e7eb'};
   background: ${props => props.$active
         ? 'linear-gradient(135deg, #d97706 0%, #b45309 100%)'

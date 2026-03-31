@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { Link } from 'react-router-dom';
+import axios from 'axios';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaEnvelope, FaLock, FaArrowRight, FaHome } from 'react-icons/fa';
+import { FaEnvelope, FaArrowLeft, FaPaperPlane, FaHome } from 'react-icons/fa';
 
-const LoginContainer = styled.div`
+const ForgotContainer = styled.div`
   min-height: 100vh;
   display: flex;
   background: #fdfcfb;
@@ -34,6 +33,10 @@ const VisualSide = styled.div`
   
   @media (max-width: 1024px) {
     padding: 3rem;
+  }
+
+  @media (max-width: 900px) {
+    display: none;
   }
   
   .content {
@@ -90,7 +93,7 @@ const FormSide = styled.div`
   }
 `;
 
-const LoginCard = styled(motion.div)`
+const ForgotCard = styled(motion.div)`
   width: 100%;
   max-width: 440px;
   
@@ -117,7 +120,7 @@ const LogoLink = styled(Link)`
   }
 `;
 
-const LoginHeader = styled.div`
+const ForgotHeader = styled.div`
   margin-bottom: 2.5rem;
 
   h1 {
@@ -131,6 +134,7 @@ const LoginHeader = styled.div`
   p {
     color: #6b7280;
     font-size: 1.1rem;
+    line-height: 1.5;
   }
 `;
 
@@ -138,6 +142,19 @@ const Form = styled.form`
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+`;
+
+const FormGroupWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+const Label = styled.label`
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
 `;
 
 const InputWrapper = styled.div`
@@ -155,14 +172,6 @@ const InputWrapper = styled.div`
   &:focus-within svg {
     color: #d97706;
   }
-`;
-
-const Label = styled.label`
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 0.5rem;
 `;
 
 const Input = styled.input`
@@ -229,21 +238,41 @@ const Button = styled.button`
   }
 `;
 
-const FooterText = styled.p`
+const BackLink = styled(Link)`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   margin-top: 2rem;
-  text-align: center;
   color: #6b7280;
-  font-size: 1rem;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: color 0.3s;
 
-  a {
+  &:hover {
     color: #d97706;
-    text-decoration: none;
-    font-weight: 700;
-    margin-left: 0.25rem;
+  }
+`;
 
-    &:hover {
-      text-decoration: underline;
-    }
+const SuccessMsg = styled(motion.div)`
+  background: #ecfdf5;
+  color: #059669;
+  padding: 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  font-weight: 500;
+  border: 1px solid #d1fae5;
+  text-align: center;
+  
+  h3 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+    color: #065f46;
+  }
+  
+  p {
+    color: #065f46;
+    font-size: 0.95rem;
   }
 `;
 
@@ -252,30 +281,17 @@ const ErrorMsg = styled(motion.div)`
   color: #ef4444;
   padding: 1rem;
   border-radius: 8px;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   font-size: 0.875rem;
   font-weight: 500;
   border: 1px solid #fee2e2;
 `;
 
-const Login = () => {
-  const { t } = useLanguage();
-  const { login } = useAuth();
-  const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
+const ForgotPassword = () => {
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-    if (error) setError('');
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -283,45 +299,41 @@ const Login = () => {
     setError('');
 
     try {
-      const result = await login(formData.email, formData.password);
-      if (result.success) {
-        navigate('/dashboard');
-      } else {
-        setError(result.message || 'Invalid email or password');
-      }
+      await axios.post('/api/auth/forgot-password', { email });
+      setSubmitted(true);
     } catch (err) {
-      setError('Something went wrong. Please try again.');
+      setError(err.response?.data?.message || 'Failed to send reset email. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <LoginContainer>
+    <ForgotContainer>
       <VisualSide>
         <DecorativeCircle top="-50px" left="-50px" size="400px" />
         <DecorativeCircle bottom="10%" right="-100px" size="350px" />
         <div className="content">
-          <h2>The Heart of Handcrafted Art.</h2>
-          <p>Experience the soul of Indian traditions through the eyes of our master artisans.</p>
+          <h2>Don't Worry, We've Got You.</h2>
+          <p>Resetting your password is quick and easy. You'll be back to exploring authentic crafts in no time.</p>
         </div>
       </VisualSide>
 
       <FormSide>
-        <LoginCard
+        <ForgotCard
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, cubicBezier: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.6 }}
         >
           <LogoLink to="/">
             <FaHome size={20} />
             <span>Go to Home</span>
           </LogoLink>
 
-          <LoginHeader>
-            <h1>{t('auth.login')}</h1>
-            <p>Enter your details to access your account.</p>
-          </LoginHeader>
+          <ForgotHeader>
+            <h1>Forgot Password?</h1>
+            <p>No worries, it happens. Enter your email address and we'll send you instructions to reset your password.</p>
+          </ForgotHeader>
 
           <AnimatePresence>
             {error && (
@@ -335,65 +347,54 @@ const Login = () => {
             )}
           </AnimatePresence>
 
-          <Form onSubmit={handleSubmit}>
-            <FormGroupWrapper>
-              <Label htmlFor="email">{t('auth.email')}</Label>
-              <InputWrapper>
-                <FaEnvelope />
-                <Input
-                  type="email"
-                  id="email"
-                  name="email"
-                  placeholder="name@example.com"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                />
-              </InputWrapper>
-            </FormGroupWrapper>
+          <AnimatePresence>
+            {submitted && (
+              <SuccessMsg
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+              >
+                <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📧</div>
+                <h3>Check your email</h3>
+                <p>We've sent a password reset link to <strong>{email}</strong>. Check your inbox and spam folder.</p>
+              </SuccessMsg>
+            )}
+          </AnimatePresence>
 
-            <FormGroupWrapper>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Label htmlFor="password">{t('auth.password')}</Label>
-                <Link to="/forgot-password" style={{ fontSize: '0.8rem', color: '#d97706', textDecoration: 'none', fontWeight: 600 }}>
-                  Forgot?
-                </Link>
-              </div>
-              <InputWrapper>
-                <FaLock />
-                <Input
-                  type="password"
-                  id="password"
-                  name="password"
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                />
-              </InputWrapper>
-            </FormGroupWrapper>
+          {!submitted && (
+            <Form onSubmit={handleSubmit}>
+              <FormGroupWrapper>
+                <Label htmlFor="email">Email Address</Label>
+                <InputWrapper>
+                  <FaEnvelope />
+                  <Input
+                    type="email"
+                    id="email"
+                    name="email"
+                    placeholder="name@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </InputWrapper>
+              </FormGroupWrapper>
 
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Authenticating...' : (
-                <>
-                  {t('auth.login')} <FaArrowRight size={16} />
-                </>
-              )}
-            </Button>
-          </Form>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Sending...' : (
+                  <>
+                    Send Reset Link <FaPaperPlane size={14} />
+                  </>
+                )}
+              </Button>
+            </Form>
+          )}
 
-          <FooterText>
-            {t('auth.dontHaveAccount')} <Link to="/register">{t('auth.register')}</Link>
-          </FooterText>
-        </LoginCard>
+          <BackLink to="/login">
+            <FaArrowLeft size={12} /> Back to Sign In
+          </BackLink>
+        </ForgotCard>
       </FormSide>
-    </LoginContainer>
+    </ForgotContainer>
   );
 };
 
-const FormGroupWrapper = styled.div`
-  display: flex;
-  flex-direction: column;
-`;
-
-export default Login;
+export default ForgotPassword;

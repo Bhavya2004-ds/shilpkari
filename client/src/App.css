@@ -374,9 +374,13 @@ a:hover {
 }
 
 /* Focus Styles */
-*:focus {
+:focus-visible {
   outline: 2px solid #d97706;
   outline-offset: 2px;
+}
+
+*:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /* Print Styles */

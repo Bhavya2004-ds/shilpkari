@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { Toaster } from 'react-hot-toast';
 import { HelmetProvider } from 'react-helmet-async';
@@ -23,6 +23,8 @@ import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import Login from './pages/Auth/Login';
 import Register from './pages/Auth/Register';
+import ForgotPassword from './pages/Auth/ForgotPassword';
+import ResetPassword from './pages/Auth/ResetPassword';
 import Dashboard from './pages/Dashboard/Dashboard';
 import ArtisanProfile from './pages/Artisan/ArtisanProfile';
 import AddProduct from './pages/Artisan/AddProduct';
@@ -65,6 +67,23 @@ function App() {
     return isAuthenticated ? children : <Navigate to="/login" replace />;
   };
 
+  const AppLayout = ({ children }) => {
+    const location = useLocation();
+    const normalizedPath = location.pathname.replace(/\/$/, "");
+    const hideLayout = ['/login', '/register', '/forgot-password'].includes(normalizedPath) || normalizedPath.startsWith('/reset-password') || location.pathname === '/login/' || location.pathname === '/register/';
+
+    return (
+      <div className="App">
+        <ScrollToTop />
+        {!hideLayout && <Navbar />}
+        <main className={hideLayout ? "" : "main-content"}>
+          {children}
+        </main>
+        {!hideLayout && <Footer />}
+      </div>
+    );
+  };
+
   return (
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
@@ -73,24 +92,25 @@ function App() {
             <CartProvider>
               <WishlistProvider>
                 <Router>
-                  <div className="App">
-                    <ScrollToTop />
-                    <Navbar />
-                    <main className="main-content">
-                      <Routes>
+                  <AppLayout>
+                    <Routes>
                         {/* Public Routes */}
                         <Route path="/" element={<Home />} />
-                        <Route path="/products" element={<Products />} />
-                        <Route path="/products/:id" element={<ProductDetail />} />
-                        <Route path="/artisans" element={<ArtisansPage />} /> {/* added */}
-                        <Route path="/artisan/:id" element={<ArtisanProfile />} />
-                        <Route path="/about" element={<About />} />
-                        <Route path="/contact" element={<Contact />} />
-                        <Route path="/wishlist" element={<Wishlist />} />
-
+                        
                         {/* Auth Routes */}
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
+                        <Route path="/forgot-password" element={<ForgotPassword />} />
+                        <Route path="/reset-password/:token" element={<ResetPassword />} />
+
+                        {/* Protected Browsing Routes */}
+                        <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
+                        <Route path="/products/:id" element={<ProtectedRoute><ProductDetail /></ProtectedRoute>} />
+                        <Route path="/artisans" element={<ProtectedRoute><ArtisansPage /></ProtectedRoute>} />
+                        <Route path="/artisan/:id" element={<ProtectedRoute><ArtisanProfile /></ProtectedRoute>} />
+                        <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />
+                        <Route path="/contact" element={<ProtectedRoute><Contact /></ProtectedRoute>} />
+                        <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
 
                         {/* Protected Routes */}
                         <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
@@ -111,17 +131,16 @@ function App() {
                         <Route path="/artisan/blockchain" element={<ProtectedRoute><BlockchainSupplyChain /></ProtectedRoute>} />
 
                         {/* VR/AR Routes */}
-                        <Route path="/vr/:id" element={<VRViewer />} />
-                        <Route path="/ar/:id" element={<ARViewer />} />
+                        <Route path="/vr/:id" element={<ProtectedRoute><VRViewer /></ProtectedRoute>} />
+                        <Route path="/ar/:id" element={<ProtectedRoute><ARViewer /></ProtectedRoute>} />
 
                         {/* Blockchain Routes */}
-                        <Route path="/supply-chain/:id" element={<SupplyChain />} />
+                        <Route path="/supply-chain/:id" element={<ProtectedRoute><SupplyChain /></ProtectedRoute>} />
 
                         {/* 404 Route */}
                         <Route path="*" element={<NotFound />} />
                       </Routes>
-                    </main>
-                    <Footer />
+                    </AppLayout>
                     <Toaster
                       position="top-right"
                       toastOptions={{
@@ -146,7 +165,6 @@ function App() {
                         },
                       }}
                     />
-                  </div>
                 </Router>
               </WishlistProvider>
             </CartProvider>

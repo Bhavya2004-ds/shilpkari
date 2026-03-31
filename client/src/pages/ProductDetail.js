@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
@@ -12,11 +12,20 @@ import { FaStar, FaFilter, FaRegStar, FaStarHalfAlt, FaHeart, FaRegHeart, FaCube
 
 const ProductDetailContainer = styled.div`
   min-height: 100vh;
-  padding: 2rem 1rem;
   max-width: 1200px;
   margin: 2rem auto;
   padding: 0 1.5rem;
   min-height: calc(100vh - 100px);
+  
+  @media (max-width: 768px) {
+    margin: 1rem auto;
+    padding: 0 0.75rem;
+  }
+  
+  @media (max-width: 480px) {
+    margin: 0.5rem auto;
+    padding: 0 0.5rem;
+  }
 `;
 
 const ProductDetailContent = styled.div`
@@ -33,13 +42,17 @@ const ProductDetailContent = styled.div`
   }
   
   @media (max-width: 768px) {
-    padding: 1.5rem;
+    flex-direction: column;
+    padding: 1.25rem;
+    gap: 1.25rem;
     border-radius: 12px;
   }
   
   @media (max-width: 480px) {
-    padding: 1.25rem;
+    padding: 1rem;
+    gap: 1rem;
     border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
   }
 `;
 
@@ -65,6 +78,8 @@ const ProductImage = styled.div`
   align-items: center;
   justify-content: center;
   padding: 2rem;
+  border-radius: 12px;
+  overflow: hidden;
   
   img {
     max-width: 100%;
@@ -76,15 +91,30 @@ const ProductImage = styled.div`
     min-height: 400px;
   }
   
-  @media (max-width: 992px) {
-    min-height: 300px;
-    padding: 1.5rem;
+  @media (max-width: 768px) {
+    min-height: 280px;
+    padding: 1rem;
+    border-radius: 10px;
+  }
+  
+  @media (max-width: 480px) {
+    min-height: 220px;
+    padding: 0.75rem;
+    border-radius: 8px;
   }
 `;
 
 const ProductInfo = styled.div`
   flex: 1;
   padding: 3rem 2rem 3rem 0;
+  
+  @media (max-width: 768px) {
+    padding: 0.5rem 0 0 0;
+  }
+  
+  @media (max-width: 480px) {
+    padding: 0;
+  }
   
   h1 {
     font-size: 2.2rem;
@@ -95,15 +125,17 @@ const ProductInfo = styled.div`
     letter-spacing: -0.5px;
     
     @media (max-width: 1024px) {
-      font-size: 2.25rem;
-    }
-    
-    @media (max-width: 768px) {
       font-size: 2rem;
     }
     
+    @media (max-width: 768px) {
+      font-size: 1.6rem;
+      margin: 0 0 0.75rem;
+    }
+    
     @media (max-width: 480px) {
-      font-size: 1.75rem;
+      font-size: 1.4rem;
+      margin: 0 0 0.5rem;
     }
   }
   
@@ -216,6 +248,35 @@ const ProductInfo = styled.div`
   }
 `;
 
+const ArtisanName = styled.div`
+  font-size: 1.1rem;
+  color: #b45309;
+  margin-top: -0.5rem;
+  margin-bottom: 1rem;
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 500;
+
+  &::before {
+    content: '✦';
+    font-style: normal;
+    font-size: 0.9rem;
+  }
+  
+  a {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.2s ease;
+    
+    &:hover {
+      color: #92400e;
+      text-decoration: underline;
+    }
+  }
+`;
+
 const AddToCartButton = styled.button`
   background-color: #d97706;
   color: white;
@@ -249,11 +310,24 @@ const AddToCartButton = styled.button`
     cursor: not-allowed;
     transform: none;
   }
+  
+  @media (max-width: 768px) {
+    max-width: none;
+    padding: 0.875rem 1.5rem;
+    font-size: 1rem;
+  }
+  
+  @media (max-width: 480px) {
+    padding: 0.8rem 1.25rem;
+    font-size: 0.95rem;
+    width: 100%;
+  }
 `;
 
 const WishlistButton = styled.button`
   width: 52px;
   height: 52px;
+  min-width: 52px;
   border-radius: 8px;
   border: 2px solid ${props => props.$active ? '#ef4444' : '#e5e7eb'};
   background: ${props => props.$active ? '#fef2f2' : 'white'};
@@ -279,6 +353,12 @@ const WishlistButton = styled.button`
       transform: scale(1.1);
     }
   }
+  
+  @media (max-width: 480px) {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+  }
 `;
 
 const ButtonGroup = styled.div`
@@ -287,12 +367,32 @@ const ButtonGroup = styled.div`
   align-items: center;
   margin: 1.5rem 0;
   flex-wrap: wrap;
+  
+  @media (max-width: 768px) {
+    margin: 1.25rem 0;
+    gap: 0.75rem;
+  }
+  
+  @media (max-width: 480px) {
+    flex-direction: row;
+    gap: 0.75rem;
+  }
 `;
 
 // Styled components for the review section
 const ReviewSection = styled.div`
   margin-top: 3rem;
   padding: 0 1rem;
+  
+  @media (max-width: 768px) {
+    margin-top: 2rem;
+    padding: 0 0.5rem;
+  }
+  
+  @media (max-width: 480px) {
+    margin-top: 1.5rem;
+    padding: 0 0.25rem;
+  }
 `;
 
 const ReviewHeader = styled.div`
@@ -308,6 +408,14 @@ const ReviewTitle = styled.h2`
   font-size: 1.75rem;
   color: #1f2937;
   margin: 0;
+  
+  @media (max-width: 768px) {
+    font-size: 1.4rem;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 1.25rem;
+  }
 `;
 
 const ReviewSummary = styled.div`
@@ -318,12 +426,30 @@ const ReviewSummary = styled.div`
   padding: 1.5rem;
   border-radius: 0.75rem;
   margin-bottom: 2rem;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+  
+  @media (max-width: 480px) {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
 `;
 
 const AverageRating = styled.div`
   text-align: center;
   padding: 0 1.5rem;
   border-right: 1px solid #e5e7eb;
+  
+  @media (max-width: 768px) {
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0 0 1rem 0;
+  }
 `;
 
 const RatingScore = styled.div`
@@ -399,6 +525,16 @@ const FilterButton = styled.button`
 const ViewerSection = styled.div`
   margin-top: 3rem;
   padding: 0 1rem;
+  
+  @media (max-width: 768px) {
+    margin-top: 2rem;
+    padding: 0 0.5rem;
+  }
+  
+  @media (max-width: 480px) {
+    margin-top: 1.5rem;
+    padding: 0 0.25rem;
+  }
 `;
 
 const ViewerHeader = styled.div`
@@ -414,6 +550,14 @@ const ViewerTitle = styled.h2`
   font-size: 1.75rem;
   color: #1f2937;
   margin: 0;
+  
+  @media (max-width: 768px) {
+    font-size: 1.4rem;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 1.25rem;
+  }
 `;
 
 const ViewerTabs = styled.div`
@@ -660,8 +804,7 @@ const ProductDetail = () => {
                   justifyContent: 'center',
                   backgroundColor: '#f8fafc',
                   borderRadius: '8px',
-                  padding: '2rem',
-                  minHeight: '400px'
+                  padding: '1rem'
                 }}>
                   {imageUrl ? (
                     <img
@@ -674,7 +817,7 @@ const ProductDetail = () => {
                       }}
                       style={{
                         maxWidth: '100%',
-                        maxHeight: '400px',
+                        maxHeight: '100%',
                         width: 'auto',
                         height: 'auto',
                         objectFit: 'contain',
@@ -693,8 +836,15 @@ const ProductDetail = () => {
           </ProductImage>
           <ProductInfo>
             <h1>{product.name || 'Product Name'}</h1>
-            <div style={{ display: 'flex', alignItems: 'center', margin: '1rem 0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginRight: '2rem' }}>
+            {product.artisan && (
+              <ArtisanName>
+                Made by <Link to={`/artisan/${product.artisan._id || product.artisan.id}`}>
+                  {product.artisan.artisanProfile?.businessName || product.artisan.name}
+                </Link>
+              </ArtisanName>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', margin: '1rem 0', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginRight: '1rem' }}>
                 {[1, 2, 3, 4, 5].map((star) => (
                   <FaStar
                     key={star}
@@ -702,14 +852,14 @@ const ProductDetail = () => {
                     style={{ marginRight: 4 }}
                   />
                 ))}
-                <span style={{ marginLeft: '0.5rem', color: '#64748b' }}>
+                <span style={{ marginLeft: '0.5rem', color: '#64748b', fontSize: '0.9rem' }}>
                   ({product.reviews?.length || 0} reviews)
                 </span>
               </div>
               {product.inStock ? (
-                <span style={{ color: '#10b981', fontWeight: 500 }}>In Stock</span>
+                <span style={{ color: '#10b981', fontWeight: 500, fontSize: '0.9rem' }}>In Stock</span>
               ) : (
-                <span style={{ color: '#ef4444', fontWeight: 500 }}>Out of Stock</span>
+                <span style={{ color: '#ef4444', fontWeight: 500, fontSize: '0.9rem' }}>Out of Stock</span>
               )}
             </div>
 

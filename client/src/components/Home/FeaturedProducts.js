@@ -75,7 +75,23 @@ const ProductName = styled.h3`
   font-size: 1.125rem;
   font-weight: 600;
   color: #1f2937;
+  margin-bottom: 0.25rem;
+`;
+
+const ArtisanCredit = styled.p`
+  font-size: 0.8rem;
+  color: #b45309;
   margin-bottom: 0.5rem;
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+
+  &::before {
+    content: '✦';
+    font-style: normal;
+    font-size: 0.7rem;
+  }
 `;
 
 const ProductPrice = styled.div`
@@ -179,7 +195,8 @@ const FeaturedProducts = () => {
             name: p.name,
             price: `₹${p.price?.toLocaleString?.('en-IN') || p.price}`,
             image: fixedImages[0] || '🧶',
-            images: fixedImages
+            images: fixedImages,
+            artisanName: p.artisan?.name || ''
           };
         });
         
@@ -251,6 +268,9 @@ const FeaturedProducts = () => {
                   </ProductImage>
                   <ProductInfo>
                     <ProductName>{product.name}</ProductName>
+                    {product.artisanName && (
+                      <ArtisanCredit>Made by {product.artisanName}</ArtisanCredit>
+                    )}
                     <ProductPrice>{product.price}</ProductPrice>
                   </ProductInfo>
                 </Link>

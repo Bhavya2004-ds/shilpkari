@@ -1,9 +1,22 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Configure email transporter
+const createTransporter = () => {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+};
 
 // Register
 router.post('/register', async (req, res) => {
@@ -157,6 +170,138 @@ router.put('/change-password', auth, async (req, res) => {
   } catch (error) {
     console.error('Change password error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Forgot Password - Send reset email
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      // Don't reveal whether email exists for security
+      return res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+    // Save to user
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+    await user.save({ validateBeforeSave: false });
+
+    // Build reset URL
+    const clientURL = process.env.CLIENT_URL || 'http://localhost:3000';
+    const resetURL = `${clientURL}/reset-password/${resetToken}`;
+
+    // Send email
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: `"शिल्पकारी - Shilpkari" <${process.env.EMAIL_USER}>`,
+      to: user.email,
+      subject: 'Password Reset Request - शिल्पकारी',
+      html: `
+        <div style="max-width: 600px; margin: 0 auto; font-family: 'Inter', Arial, sans-serif; background: #fdfcfb; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08);">
+          <div style="background: linear-gradient(135deg, #1e0a03, #50230a); padding: 40px 30px; text-align: center;">
+            <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 800;">शिल्पकारी</h1>
+            <p style="color: rgba(255,255,255,0.85); font-size: 14px; margin-top: 8px;">Artisan Marketplace</p>
+          </div>
+          <div style="padding: 40px 30px;">
+            <h2 style="color: #111827; font-size: 22px; margin: 0 0 16px;">Password Reset Request</h2>
+            <p style="color: #6b7280; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+              Hi <strong>${user.name}</strong>,<br><br>
+              We received a request to reset your password. Click the button below to create a new password. This link will expire in <strong>1 hour</strong>.
+            </p>
+            <div style="text-align: center; margin: 32px 0;">
+              <a href="${resetURL}" style="display: inline-block; background: linear-gradient(135deg, #d97706, #b45309); color: white; text-decoration: none; padding: 14px 40px; border-radius: 12px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 14px rgba(217,119,6,0.3);">
+                Reset My Password
+              </a>
+            </div>
+            <p style="color: #9ca3af; font-size: 13px; line-height: 1.6; margin: 24px 0 0; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+              If you didn't request this, you can safely ignore this email. Your password will remain unchanged.<br><br>
+              If the button doesn't work, copy and paste this link into your browser:<br>
+              <a href="${resetURL}" style="color: #d97706; word-break: break-all;">${resetURL}</a>
+            </p>
+          </div>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ message: 'Failed to send reset email. Please try again later.' });
+  }
+});
+
+// Reset Password - Verify token and update password
+router.post('/reset-password/:token', async (req, res) => {
+  try {
+    const { password } = req.body;
+    const { token } = req.params;
+
+    // Hash the token from URL to compare with stored hash
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired reset token. Please request a new password reset.' });
+    }
+
+    // Update password
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    // Send confirmation email
+    try {
+      const transporter = createTransporter();
+      await transporter.sendMail({
+        from: `"शिल्पकारी - Shilpkari" <${process.env.EMAIL_USER}>`,
+        to: user.email,
+        subject: 'Password Changed Successfully - शिल्पकारी',
+        html: `
+          <div style="max-width: 600px; margin: 0 auto; font-family: 'Inter', Arial, sans-serif; background: #fdfcfb; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08);">
+            <div style="background: linear-gradient(135deg, #1e0a03, #50230a); padding: 40px 30px; text-align: center;">
+              <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 800;">शिल्पकारी</h1>
+              <p style="color: rgba(255,255,255,0.85); font-size: 14px; margin-top: 8px;">Artisan Marketplace</p>
+            </div>
+            <div style="padding: 40px 30px;">
+              <div style="text-align: center; margin-bottom: 24px;">
+                <div style="font-size: 48px;">✅</div>
+              </div>
+              <h2 style="color: #111827; font-size: 22px; margin: 0 0 16px; text-align: center;">Password Changed Successfully</h2>
+              <p style="color: #6b7280; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+                Hi <strong>${user.name}</strong>,<br><br>
+                Your password has been successfully changed. You can now log in with your new password.
+              </p>
+              <p style="color: #ef4444; font-size: 13px; line-height: 1.6; margin: 24px 0 0; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+                If you did not make this change, please contact our support team immediately.
+              </p>
+            </div>
+          </div>
+        `
+      });
+    } catch (emailErr) {
+      // Don't fail the reset if confirmation email fails
+      console.error('Confirmation email error:', emailErr);
+    }
+
+    res.json({ message: 'Password has been reset successfully. You can now log in with your new password.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ message: 'Server error. Please try again.' });
   }
 });
 
