@@ -46,14 +46,14 @@ const DashboardContent = styled.div`
 `;
 
 const WelcomeSection = styled(motion.div)`
-  background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 50%, #3d5a80 100%);
+  background: linear-gradient(135deg, #44270d 0%, #5c3310 50%, #78420e 100%);
   border-radius: 1.5rem;
   padding: 2.5rem;
   margin-bottom: 2rem;
   color: white;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 20px 40px -10px rgba(30, 58, 95, 0.4);
+  box-shadow: 0 20px 40px -10px rgba(68, 39, 13, 0.4);
 
   &::before {
     content: '';
@@ -645,7 +645,7 @@ const SellerDashboard = () => {
             <WelcomeLeft>
               <Avatar>{getInitials(user?.name)}</Avatar>
               <WelcomeText>
-                <h1>Welcome, {user?.name?.split(' ')[0]}! 🎨</h1>
+                <h1>Welcome, {user?.name?.split(' ')[0]}!</h1>
                 <p>Manage your artisan shop and track your sales</p>
               </WelcomeText>
             </WelcomeLeft>
@@ -675,9 +675,9 @@ const SellerDashboard = () => {
 
             <StatCard
               variants={itemVariants}
-              $gradient="linear-gradient(90deg, #3b82f6, #60a5fa)"
+              $gradient="linear-gradient(90deg, #d97706, #f59e0b)"
             >
-              <StatIcon $bg="linear-gradient(135deg, #dbeafe, #bfdbfe)" $color="#3b82f6">
+              <StatIcon $bg="linear-gradient(135deg, #fef3c7, #fde68a)" $color="#d97706">
                 <FiShoppingCart />
               </StatIcon>
               <StatValue>{stats.totalSales}</StatValue>

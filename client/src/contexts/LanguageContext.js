@@ -27,6 +27,7 @@ export const LanguageProvider = ({ children }) => {
     
     setCurrentLanguage(language);
     i18n.changeLanguage(language);
+    document.documentElement.lang = language;
   }, []);
 
   const changeLanguage = async (languageCode) => {

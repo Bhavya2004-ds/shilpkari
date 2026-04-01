@@ -2,8 +2,193 @@ const express = require('express');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const { auth } = require('../middleware/auth');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const router = express.Router();
+
+// Create Stripe Checkout Session
+router.post('/create-checkout-session', auth, async (req, res) => {
+  try {
+    const { items, shippingAddress } = req.body;
+
+    // Validate products and build line items
+    const lineItems = [];
+    let subtotal = 0;
+
+    for (const item of items) {
+      const product = await Product.findById(item.product);
+      if (!product || !product.isActive) {
+        return res.status(400).json({ message: `Product not found or inactive` });
+      }
+
+      const unitPrice = Math.round(product.price * 100); // Stripe uses paise/cents
+      subtotal += product.price * item.quantity;
+
+      lineItems.push({
+        price_data: {
+          currency: 'inr',
+          product_data: {
+            name: product.name,
+            images: product.images && product.images.length > 0 ? [product.images[0]] : [],
+          },
+          unit_amount: unitPrice,
+        },
+        quantity: item.quantity,
+      });
+    }
+
+    // Add tax as a line item
+    const tax = Math.round(subtotal * 0.18 * 100);
+    lineItems.push({
+      price_data: {
+        currency: 'inr',
+        product_data: { name: 'GST (18%)' },
+        unit_amount: tax,
+      },
+      quantity: 1,
+    });
+
+    // Add shipping if applicable
+    const shipping = subtotal > 1000 ? 0 : 100;
+    if (shipping > 0) {
+      lineItems.push({
+        price_data: {
+          currency: 'inr',
+          product_data: { name: 'Shipping' },
+          unit_amount: shipping * 100,
+        },
+        quantity: 1,
+      });
+    }
+
+    const clientURL = process.env.CLIENT_URL || 'http://localhost:3000';
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: lineItems,
+      mode: 'payment',
+      success_url: `${clientURL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${clientURL}/checkout`,
+      metadata: {
+        userId: req.userId,
+        items: JSON.stringify(items.map(i => ({ product: i.product, quantity: i.quantity }))),
+        shippingAddress: JSON.stringify(shippingAddress),
+      },
+    });
+
+    res.json({ sessionUrl: session.url });
+  } catch (error) {
+    console.error('Create checkout session error:', error);
+    res.status(500).json({ message: 'Failed to create payment session.' });
+  }
+});
+
+// Verify Stripe Session and Create Order
+router.post('/verify-stripe-session', auth, async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status !== 'paid') {
+      return res.status(400).json({ message: 'Payment not completed.' });
+    }
+
+    // Check if order already created for this session
+    const existingOrder = await Order.findOne({ 'payment.transactionId': sessionId });
+    if (existingOrder) {
+      return res.json({
+        message: 'Order already exists',
+        order: {
+          id: existingOrder._id,
+          orderNumber: existingOrder.orderNumber,
+          total: existingOrder.payment.amount.total,
+          status: existingOrder.status,
+        },
+      });
+    }
+
+    // Parse metadata
+    const items = JSON.parse(session.metadata.items);
+    const shippingAddress = JSON.parse(session.metadata.shippingAddress);
+
+    // Build order data
+    let subtotal = 0;
+    const orderItems = [];
+    for (const item of items) {
+      const product = await Product.findById(item.product);
+      if (!product) continue;
+
+      // Auto-restock for demo
+      if (product.inventory.available < item.quantity) {
+        await Product.findByIdAndUpdate(item.product, {
+          $set: { 'inventory.available': item.quantity + 10 },
+        });
+      }
+
+      orderItems.push({
+        product: item.product,
+        quantity: item.quantity,
+        price: product.price,
+      });
+      subtotal += product.price * item.quantity;
+    }
+
+    const tax = subtotal * 0.18;
+    const shipping = subtotal > 1000 ? 0 : 100;
+    const total = subtotal + tax + shipping;
+
+    const orderData = {
+      buyer: req.userId,
+      items: orderItems,
+      shippingAddress,
+      billingAddress: shippingAddress,
+      payment: {
+        method: 'card',
+        status: 'completed',
+        transactionId: sessionId,
+        amount: { subtotal, tax, shipping, discount: 0, total },
+      },
+    };
+
+    const order = new Order(orderData);
+    await order.save();
+
+    // Update inventory
+    for (const item of order.items) {
+      await Product.findByIdAndUpdate(item.product, {
+        $inc: {
+          'inventory.available': -item.quantity,
+          'inventory.reserved': item.quantity,
+          sales: item.quantity,
+        },
+      });
+    }
+
+    order.supplyChain.push({
+      stage: 'order_placed',
+      timestamp: new Date(),
+      location: 'Online Platform',
+      description: 'Order placed successfully via Stripe payment',
+      verified: true,
+    });
+
+    await order.save();
+
+    res.json({
+      message: 'Order created successfully',
+      order: {
+        id: order._id,
+        orderNumber: order.orderNumber,
+        total: order.payment.amount.total,
+        status: order.status,
+      },
+    });
+  } catch (error) {
+    console.error('Verify stripe session error:', error);
+    res.status(500).json({ message: 'Failed to verify payment.' });
+  }
+});
 
 // Create order
 router.post('/', auth, async (req, res) => {

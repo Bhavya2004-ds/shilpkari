@@ -21,6 +21,7 @@ import Products from './pages/Products';
 import ProductDetail from './pages/ProductDetail';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
+import CheckoutSuccess from './pages/CheckoutSuccess';
 import Login from './pages/Auth/Login';
 import Register from './pages/Auth/Register';
 import ForgotPassword from './pages/Auth/ForgotPassword';
@@ -115,6 +116,7 @@ function App() {
                         {/* Protected Routes */}
                         <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
                         <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+                        <Route path="/checkout/success" element={<ProtectedRoute><CheckoutSuccess /></ProtectedRoute>} />
                         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                         <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
                         <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />

@@ -880,24 +880,46 @@ const Checkout = () => {
     return true;
   };
 
-  const handlePlaceOrder = (e) => {
+  const handlePlaceOrder = async (e) => {
     e.preventDefault();
     if (!validateShippingAddress()) return;
 
     if (paymentMethod === 'cod') {
       placeOrder();
+    } else if (paymentMethod === 'card') {
+      // Stripe Checkout redirect
+      await handleStripeCheckout();
     } else {
       setShowPaymentModal(true);
     }
   };
 
+  const handleStripeCheckout = async () => {
+    setLoading(true);
+    try {
+      const payload = {
+        items: items.map(i => ({
+          product: i.id,
+          quantity: i.quantity,
+        })),
+        shippingAddress,
+      };
+      const { data } = await api.post('/orders/create-checkout-session', payload);
+      // Redirect to Stripe hosted checkout
+      window.location.href = data.sessionUrl;
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to start payment. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const simulateDemoPayment = async () => {
     setPaymentProcessing(true);
-    // Simulate payment processing
+    // Simulate payment processing (UPI demo only)
     await new Promise(resolve => setTimeout(resolve, 2500));
     setPaymentProcessing(false);
     setPaymentSuccess(true);
-    // Place order after successful payment
     await new Promise(resolve => setTimeout(resolve, 1500));
     await placeOrder(true);
   };
@@ -919,7 +941,7 @@ const Checkout = () => {
           method: paymentMethod,
           status: paymentMethod === 'cod' ? 'pending' : 'completed'
         },
-        skipInventoryCheck // For demo purposes
+        skipInventoryCheck
       };
       const { data } = await api.post('/orders', payload);
       toast.success('Order placed successfully! 🎉');
@@ -1118,8 +1140,8 @@ const Checkout = () => {
                           <FiCreditCard />
                         </PaymentIcon>
                         <PaymentInfo>
-                          <h4>Credit/Debit Card <DemoBadge>Demo</DemoBadge></h4>
-                          <p>All major cards accepted</p>
+                          <h4>Credit/Debit Card <DemoBadge>Stripe</DemoBadge></h4>
+                          <p>Secure payment via Stripe (test mode)</p>
                         </PaymentInfo>
                       </PaymentOption>
                     </PaymentMethods>
@@ -1186,7 +1208,7 @@ const Checkout = () => {
                     ) : (
                       <>
                         <FiCheck />
-                        {paymentMethod === 'cod' ? 'Place Order' : 'Proceed to Pay'}
+                        {paymentMethod === 'cod' ? 'Place Order' : paymentMethod === 'card' ? 'Pay with Stripe' : 'Proceed to Pay'}
                       </>
                     )}
                   </PlaceOrderButton>

@@ -9,11 +9,21 @@ const router = express.Router();
 
 // Configure email transporter
 const createTransporter = () => {
+  const emailUser = process.env.EMAIL_USER;
+  const emailPass = process.env.EMAIL_PASS;
+
+  if (!emailUser || !emailPass || emailUser === 'your-email@gmail.com' || emailPass === 'your-app-password-here') {
+    console.error('⚠️  EMAIL CONFIG ERROR: EMAIL_USER and EMAIL_PASS must be set in .env file with real credentials.');
+    console.error('   EMAIL_USER is:', emailUser ? `"${emailUser}"` : 'MISSING');
+    console.error('   EMAIL_PASS is:', emailPass ? 'SET (hidden)' : 'MISSING');
+    return null;
+  }
+
   return nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
+      user: emailUser,
+      pass: emailPass
     }
   });
 };
@@ -199,6 +209,11 @@ router.post('/forgot-password', async (req, res) => {
 
     // Send email
     const transporter = createTransporter();
+
+    if (!transporter) {
+      console.error('Cannot send reset email: Email transporter not configured. Check EMAIL_USER and EMAIL_PASS in .env');
+      return res.status(500).json({ message: 'Email service is not configured. Please contact support.' });
+    }
 
     const mailOptions = {
       from: `"शिल्पकारी - Shilpkari" <${process.env.EMAIL_USER}>`,
