@@ -13,6 +13,7 @@ const RegisterContainer = styled.div`
   overflow: hidden;
   
   @media (max-width: 900px) {
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     padding: 2rem 1rem;
@@ -31,8 +32,13 @@ const VisualSide = styled.div`
   padding: 5rem;
   color: white;
   position: relative;
+
+  @media (min-width: 1800px) {
+    padding: 6rem 8rem;
+  }
   
-  @media (max-width: 1024px) {
+  @media (max-width: 1200px) {
+    flex: 1;
     padding: 3rem;
   }
 
@@ -44,6 +50,10 @@ const VisualSide = styled.div`
     position: relative;
     z-index: 2;
     max-width: 500px;
+
+    @media (min-width: 1800px) {
+      max-width: 600px;
+    }
   }
   
   h2 {
@@ -54,6 +64,14 @@ const VisualSide = styled.div`
     line-height: 1.1;
     letter-spacing: -2px;
     text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+
+    @media (min-width: 1800px) {
+      font-size: 4rem;
+    }
+
+    @media (max-width: 1200px) {
+      font-size: 2.75rem;
+    }
   }
   
   p {
@@ -63,6 +81,10 @@ const VisualSide = styled.div`
     line-height: 1.6;
     margin-bottom: 3rem;
     text-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
+
+    @media (max-width: 1200px) {
+      font-size: 1.1rem;
+    }
   }
 `;
 
@@ -87,10 +109,19 @@ const FormSide = styled.div`
   padding: 3rem 4rem;
   background: white;
   overflow-y: auto;
+
+  @media (min-width: 1800px) {
+    padding: 4rem 6rem;
+  }
+
+  @media (max-width: 1200px) {
+    padding: 2.5rem;
+  }
   
   @media (max-width: 900px) {
     padding: 0;
     width: 100%;
+    max-width: 540px;
     background: transparent;
   }
 `;
@@ -98,12 +129,25 @@ const FormSide = styled.div`
 const RegisterCard = styled(motion.div)`
   width: 100%;
   max-width: 480px;
+
+  @media (min-width: 1400px) {
+    max-width: 520px;
+  }
+
+  @media (min-width: 1800px) {
+    max-width: 560px;
+  }
   
   @media (max-width: 900px) {
     background: white;
-    padding: 3rem;
+    padding: 2.5rem;
     border-radius: 2rem;
     box-shadow: 0 20px 50px rgba(0,0,0,0.05);
+  }
+
+  @media (max-width: 480px) {
+    padding: 2rem 1.5rem;
+    border-radius: 1.5rem;
   }
 `;
 
@@ -131,11 +175,19 @@ const RegisterHeader = styled.div`
     color: #111827;
     margin-bottom: 0.75rem;
     letter-spacing: -1px;
+
+    @media (max-width: 480px) {
+      font-size: 2rem;
+    }
   }
 
   p {
     color: #6b7280;
     font-size: 1.1rem;
+
+    @media (max-width: 480px) {
+      font-size: 1rem;
+    }
   }
 `;
 
