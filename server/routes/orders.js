@@ -29,7 +29,7 @@ router.post('/create-checkout-session', auth, async (req, res) => {
           currency: 'inr',
           product_data: {
             name: product.name,
-            images: product.images && product.images.length > 0 ? [product.images[0]] : [],
+            images: product.images && product.images.length > 0 && product.images[0].url ? [product.images[0].url] : [],
           },
           unit_amount: unitPrice,
         },

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 
 const LanguageContext = createContext();
@@ -15,8 +16,15 @@ const languages = [
 ];
 
 export const LanguageProvider = ({ children }) => {
+  // useTranslation subscribes to i18next loading events and triggers
+  // re-renders when translations finish loading asynchronously
+  const { t, ready } = useTranslation();
   const [currentLanguage, setCurrentLanguage] = useState('en');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!ready);
+
+  useEffect(() => {
+    setIsLoading(!ready);
+  }, [ready]);
 
   useEffect(() => {
     // Get saved language from localStorage or detect browser language
@@ -63,10 +71,6 @@ export const LanguageProvider = ({ children }) => {
 
   const getAvailableLanguages = () => {
     return languages;
-  };
-
-  const t = (key, options = {}) => {
-    return i18n.t(key, options);
   };
 
   const value = {
